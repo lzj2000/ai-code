@@ -1,0 +1,167 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+
+// 导入组件
+import ChatHeader from "./components/chat-header";
+import ChatMessage from "./components/chat-message";
+import ChatInput from "./components/chat-input";
+import Sidebar from "./components/sidebar";
+
+// 导入自定义 Hooks
+import { useSendMessage } from "./hooks/useSendMessage";
+import { useChatMessages } from "./hooks/useChatMessages";
+import { useSessionManager } from "./hooks/useSessionManager";
+import { useChatHistory } from "./hooks/useChatHistory";
+
+export interface Message {
+  id: string;
+  content: string;
+  role: "user" | "assistant";
+  timestamp: Date;
+  isStreaming?: boolean;
+}
+
+export default function ChatPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // ==================== 消息管理 ====================
+  // 使用 useChatMessages hook 管理所有消息相关的状态和方法
+  const {
+    messages,              // 当前会话的所有消息
+    isLoading,             // 是否正在加载(发送消息中)
+    setIsLoading,          // 设置加载状态
+    addUserMessage,        // 添加用户消息
+    addAssistantMessage,   // 添加 AI 助手消息
+    updateMessageContent,  // 更新消息内容(用于流式响应)
+    finishStreaming,       // 完成流式传输
+    addErrorMessage,       // 添加错误消息
+    loadMessages           // 加载历史消息
+  } = useChatMessages()
+
+  // ==================== 会话管理 ====================
+  // 使用 useSessionManager hook 管理会话(session)相关状态
+  const {
+    sessionId,             // 当前会话 ID
+    sidebarRef,            // 侧边栏组件引用
+    createNewSession,      // 创建新会话
+    selectSession,         // 切换会话
+    updateSessionName,     // 更新会话名称
+    setHasUserMessage      // 设置是否有用户消息(用于判断是否需要更新会话名)
+  } = useSessionManager()
+
+  // ==================== 历史记录加载 ====================
+  // 使用 useChatHistory hook 自动加载会话历史
+  // 当 sessionId 变化时,会自动触发历史记录加载
+  useChatHistory(sessionId, loadMessages, setHasUserMessage)
+
+  // ==================== 消息发送 ====================
+  // 使用 useSendMessage hook 处理消息发送逻辑
+  const { sendMessage } = useSendMessage({
+    sessionId,
+    setIsLoading,
+    addUserMessage,
+    addAssistantMessage,
+    updateMessageContent,
+    finishStreaming,
+    addErrorMessage,
+    updateSessionName
+  })
+
+  // 滚动到底部
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  return (
+    <div className="flex h-screen bg-background">
+      {/* 侧边栏 */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        isCollapsed={sidebarCollapsed}
+        onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        ref={sidebarRef}
+        currentSessionId={sessionId}
+        onSelect={selectSession}
+        onNew={createNewSession}
+      />
+
+      {/* 主聊天区域 */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* 头部 */}
+        <ChatHeader
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+
+        {/* 消息容器 */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="flex flex-col space-y-4 p-4 md:p-6">
+            {messages.length === 0 ? (
+              <div className="flex h-full min-h-[60vh] flex-col items-center justify-center">
+                <h2 className="mb-2 text-lg font-medium text-foreground">
+                  有什么可以帮你？
+                </h2>
+                <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
+                  我是你的AI助手，可以回答问题、提供建议或帮你完成各种任务
+                </p>
+                {/* 快捷提示 */}
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {["写一首诗", "解释代码", "头脑风暴"].map((text, index) => (
+                    <button
+                      key={index}
+                      onClick={() => sendMessage(text)}
+                      className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-card-foreground transition-colors hover:bg-accent active:scale-[0.98]"
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                {messages.map((message: Message) => (
+                  <ChatMessage key={message.id} message={message} />
+                ))}
+                {/* 加载状态 */}
+                {isLoading && (
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-3">
+                      <div className="flex gap-1">
+                        <div
+                          className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+                          style={{ animationDelay: "0ms" }}
+                        ></div>
+                        <div
+                          className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+                          style={{ animationDelay: "150ms" }}
+                        ></div>
+                        <div
+                          className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+                          style={{ animationDelay: "300ms" }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* 输入区域 */}
+        <ChatInput onSendMessage={sendMessage} isLoading={isLoading} />
+      </div>
+    </div>
+  );
+}
