@@ -1,112 +1,142 @@
-import '../utils/loadEnv';
+import type { AIMessage } from '@langchain/core/messages'
+import type { ModelConfig } from './utils/modelFactory.js'
+import path from 'node:path'
 import {
-  StateGraph,
+  END,
   MessagesAnnotation,
   START,
-  END,
-} from '@langchain/langgraph';
-import { RunnableConfig } from "@langchain/core/runnables";
-import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
-import { ToolNode } from "@langchain/langgraph/prebuilt";
-import path from 'path';
-import Database from 'better-sqlite3';
-import { initSessionTable } from './db';
-import { getAllTools } from './tools';
-import { AIMessage } from '@langchain/core/messages';
-import { createModel, ModelConfig } from './modelFactory';
+  StateGraph,
+} from '@langchain/langgraph'
+import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite'
+import { ToolNode } from '@langchain/langgraph/prebuilt'
+import Database from 'better-sqlite3'
+import { initSessionTable } from './db'
+import { createModel } from './utils/modelFactory'
+import { createLangChainTools } from './utils/tools'
+import '../utils/loadEnv'
 
-// 初始化工具节点
-const tools = getAllTools();
-const toolNode = new ToolNode(tools);
+const dbPath = path.resolve(process.cwd(), 'chat_history.db')
+export const db = new Database(dbPath)
 
-// 聊天节点：处理用户输入并生成回复
-async function chatbotNode(state: typeof MessagesAnnotation.State, config: RunnableConfig) {
-  const modelConfig = config.configurable?.modelConfig as ModelConfig;
+// 全局缓存：存储不同配置的 workflow
+const workflowCache = new Map()
 
-  // 默认配置
-  if (!modelConfig) {
-    throw new Error("请在设置中配置模型和API Key");
+/**
+ * 创建聊天机器人 workflow
+ * @param config 模型配置
+ * @param toolIds 工具 ID 列表
+ */
+function createWorkflow(config?: ModelConfig, toolIds?: string[]) {
+  // 创建模型实例
+  const model = createModel(config)
+
+  // 创建工具实例
+  const tools = createLangChainTools(toolIds)
+
+  // 绑定工具到模型
+  const modelWithTools = tools.length > 0 ? model.bindTools!(tools) : model
+
+  // 聊天节点：处理用户输入并生成回复
+  async function chatbotNode(state: typeof MessagesAnnotation.State) {
+    try {
+      const response = await modelWithTools.invoke(state.messages)
+      return { messages: [response] }
+    }
+    catch (error) {
+      console.error('chatbotNode 错误详情:', error)
+      console.error('错误栈:', error instanceof Error ? error.stack : '无栈信息')
+      throw error
+    }
   }
 
-  const model = createModel(modelConfig);
-  const response = await model.invoke(state.messages);
-  return { messages: [response] };
-}
+  // 判断是否需要调用工具
+  function shouldContinue(state: typeof MessagesAnnotation.State) {
+    const lastMessage = state.messages[state.messages.length - 1]
 
-// 定义条件边逻辑
-function shouldContinue(state: typeof MessagesAnnotation.State) {
-  const messages = state.messages;
-  const lastMessage = messages[messages.length - 1];
+    // 检查最后一条消息是否包含 tool_calls
+    if (lastMessage && lastMessage._getType() === 'ai') {
+      const aiMessage = lastMessage as AIMessage
+      if (aiMessage.tool_calls && aiMessage.tool_calls.length > 0) {
+        return 'tools'
+      }
+    }
 
-  // 如果最后一条消息包含工具调用，则路由到工具节点
-  if ((lastMessage as AIMessage).tool_calls?.length) {
-    return "tools";
+    return END
   }
-  // 否则结束流程
-  return END;
-}
 
-const dbPath = path.resolve(process.cwd(), 'chat_history.db');
-export const db = new Database(dbPath);
-// 构建流式聊天机器人图
-const workflow = new StateGraph(MessagesAnnotation)
-  .addNode('chatbot', chatbotNode)
-  .addNode("tools", toolNode)
-  .addEdge(START, 'chatbot')
-  .addConditionalEdges("chatbot", shouldContinue)
-  .addEdge("tools", "chatbot");
+  // 构建 workflow
+  const workflow = new StateGraph(MessagesAnnotation)
+    .addNode('chatbot', chatbotNode)
+
+  // 如果有工具，添加工具节点和条件路由
+  if (tools.length > 0) {
+    const toolNode = new ToolNode(tools)
+    workflow
+      .addNode('tools', toolNode)
+      .addEdge(START, 'chatbot')
+      .addConditionalEdges('chatbot', shouldContinue, {
+        tools: 'tools',
+        [END]: END,
+      })
+      .addEdge('tools', 'chatbot')
+  }
+  else {
+    // 无工具，直接连接
+    workflow.addEdge(START, 'chatbot').addEdge('chatbot', END)
+  }
+
+  return workflow
+}
 
 // 异步初始化检查点保存器和应用
-let checkpointer: SqliteSaver;
-let app: ReturnType<typeof workflow.compile>;
+let checkpointer: SqliteSaver
 
-export const getCheckpointer = () => {
+export function getCheckpointer() {
   if (!checkpointer) {
     // 创建 SQLite 检查点保存器
-    console.log('初始化 SqliteSaver，数据库路径:', dbPath);
     try {
       // 初始化自定义 sessions 表
-      initSessionTable();
-      checkpointer = new SqliteSaver(db);
-      console.log('SqliteSaver 初始化成功');
-    } catch (error) {
-      console.error('SqliteSaver 初始化失败:', error);
-      throw error;
+      initSessionTable()
+      checkpointer = new SqliteSaver(db)
+    }
+    catch (error) {
+      console.error('SqliteSaver 初始化失败:', error)
+      throw error
     }
   }
-  return checkpointer;
-};
-
-async function initializeApp() {
-  if (!checkpointer) {
-    // 创建 SQLite 检查点保存器
-    console.log('初始化 SqliteSaver，数据库路径:', dbPath);
-    try {
-      // 使用 better-sqlite3 创建数据库连接
-      const db = new Database(dbPath);
-      // 初始化自定义 sessions 表
-      initSessionTable();
-      checkpointer = new SqliteSaver(db);
-      console.log('SqliteSaver 初始化成功');
-    } catch (error) {
-      console.error('SqliteSaver 初始化失败:', error);
-      throw error;
-    }
-  }
-
-  if (!app) {
-    app = workflow.compile({ checkpointer });
-  }
-
-  return app;
+  return checkpointer
 }
-// initializeApp();
+
 // 获取应用实例的函数
-const getApp = async () => {
-  return await initializeApp();
-};
+async function getApp(config?: ModelConfig, toolIds?: string[]) {
+  // 初始化 checkpointer
+  if (!checkpointer) {
+    getCheckpointer()
+  }
+
+  // 生成缓存 key
+  const cacheKey = `${config?.modelName || 'default'}-${(toolIds || []).sort().join(',')}`
+
+  // 检查缓存
+  if (workflowCache.has(cacheKey)) {
+    return workflowCache.get(cacheKey)!
+  }
+
+  // 创建新的 workflow
+  const workflow = createWorkflow(config, toolIds)
+  const app = workflow.compile({ checkpointer })
+
+  // 缓存 workflow（限制缓存大小）
+  if (workflowCache.size > 10) {
+    const firstKey = workflowCache.keys().next().value
+    firstKey && workflowCache.delete(firstKey)
+  }
+
+  workflowCache.set(cacheKey, app)
+
+  return app
+}
 
 export {
   getApp,
-  checkpointer,
-};
+}

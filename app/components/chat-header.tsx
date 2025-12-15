@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import { Menu, PanelLeftClose, PanelLeft } from "lucide-react"
+import { Menu, PanelLeft, PanelLeftClose } from 'lucide-react'
 
 interface ChatHeaderProps {
   sidebarOpen: boolean
@@ -24,7 +24,7 @@ export default function ChatHeader({ onToggleSidebar, sidebarCollapsed, onToggle
         <button
           className="hidden md:flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors text-muted-foreground"
           onClick={onToggleCollapse}
-          title={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+          title={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
         >
           {sidebarCollapsed ? <PanelLeft className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
         </button>

@@ -1,6 +1,5 @@
-import { useEffect, useCallback } from 'react'
-import type { Message } from "../page";
-
+import type { Message } from '../page'
+import { useCallback, useEffect } from 'react'
 
 /**
  * 聊天历史加载 Hook
@@ -22,7 +21,7 @@ import type { Message } from "../page";
 export function useChatHistory(
   sessionId: string,
   onLoadMessages: (messages: Message[]) => void,
-  onHasUserMessage: (hasUser: boolean) => void
+  onHasUserMessage: (hasUser: boolean) => void,
 ) {
   /**
    * 加载历史消息
@@ -44,24 +43,25 @@ export function useChatHistory(
       if (Array.isArray(data.history) && data.history.length > 0) {
         // 2. 转换 LangGraph 消息格式到应用格式
         const historyMsgs: Message[] = data.history.map((msg: {
-          id: string[] | unknown;       // LangGraph 的消息 ID 格式
-          kwargs?: { content?: string }; // 消息内容在 kwargs 中
+          id: string[] | unknown // LangGraph 的消息 ID 格式
+          kwargs?: { content?: string } // 消息内容在 kwargs 中
         }, idx: number) => {
           // 3. 根据消息类型判断角色
           let role: 'user' | 'assistant' = 'assistant'
 
           if (Array.isArray(msg.id) && msg.id.includes('HumanMessage')) {
-            role = 'user'  // 用户消息
-          } else if (Array.isArray(msg.id) && (msg.id.includes('AIMessage') || msg.id.includes('AIMessageChunk'))) {
-            role = 'assistant'  // AI 消息
+            role = 'user' // 用户消息
+          }
+          else if (Array.isArray(msg.id) && (msg.id.includes('AIMessage') || msg.id.includes('AIMessageChunk'))) {
+            role = 'assistant' // AI 消息
           }
 
           // 4. 构造标准化的消息对象
           return {
-            id: String(idx + 1),              // 使用索引作为 ID
+            id: String(idx + 1), // 使用索引作为 ID
             content: msg.kwargs?.content || '', // 提取消息内容
             role,
-            timestamp: new Date()              // 使用当前时间作为时间戳
+            timestamp: new Date(), // 使用当前时间作为时间戳
           }
         })
 
@@ -70,12 +70,14 @@ export function useChatHistory(
 
         // 6. 检查是否有用户消息(用于判断是否需要更新会话名)
         onHasUserMessage(historyMsgs.some(msg => msg.role === 'user'))
-      } else {
+      }
+      else {
         // 没有历史记录,重置为初始状态
         onLoadMessages([])
         onHasUserMessage(false)
       }
-    } catch {
+    }
+    catch {
       // 静默失败,不影响用户体验
       // 加载失败时也重置为初始状态
       onLoadMessages([])
