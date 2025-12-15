@@ -9,14 +9,12 @@ import {
 } from '@langchain/langgraph'
 import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite'
 import { ToolNode } from '@langchain/langgraph/prebuilt'
-import Database from 'better-sqlite3'
-import { initSessionTable } from './db'
+import db, { initSessionTable } from './db'
 import { createModel } from './utils/modelFactory'
 import { createLangChainTools } from './utils/tools'
 import '../utils/loadEnv'
 
-const dbPath = path.resolve(process.cwd(), 'chat_history.db')
-export const db = new Database(dbPath)
+export { db }
 
 // 全局缓存：存储不同配置的 workflow
 const workflowCache = new Map()
