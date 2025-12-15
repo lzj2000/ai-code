@@ -1,52 +1,54 @@
-"use client";
-import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+'use client'
+import { X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface ModelConfig {
-  provider: "openai" | "google" | "qwen";
-  modelName: string;
-  apiKey: string;
-  baseUrl?: string;
+  provider: 'openai' | 'google' | 'qwen'
+  modelName: string
+  apiKey: string
+  baseUrl?: string
 }
 
 interface SettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen: boolean
+  onClose: () => void
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [config, setConfig] = useState<ModelConfig>({
-    provider: "openai",
-    modelName: "",
-    apiKey: "",
-    baseUrl: ""
-  });
+    provider: 'openai',
+    modelName: '',
+    apiKey: '',
+    baseUrl: '',
+  })
 
   useEffect(() => {
     if (isOpen) {
-      const saved = localStorage.getItem("modelConfig");
+      const saved = localStorage.getItem('modelConfig')
       if (saved) {
         try {
-          const parsed = JSON.parse(saved);
+          const parsed = JSON.parse(saved)
           setConfig({
-             provider: parsed.provider || "openai",
-             modelName: parsed.modelName || "",
-             apiKey: parsed.apiKey || "",
-             baseUrl: parsed.baseUrl || ""
-          });
-        } catch (e) {
+            provider: parsed.provider || 'openai',
+            modelName: parsed.modelName || '',
+            apiKey: parsed.apiKey || '',
+            baseUrl: parsed.baseUrl || '',
+          })
+        }
+        catch {
           // ignore
         }
       }
     }
-  }, [isOpen]);
+  }, [isOpen])
 
   const handleSave = () => {
-    localStorage.setItem("modelConfig", JSON.stringify(config));
-    onClose();
-  };
+    localStorage.setItem('modelConfig', JSON.stringify(config))
+    onClose()
+  }
 
-  if (!isOpen) return null;
+  if (!isOpen)
+    return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -64,7 +66,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <select
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={config.provider}
-              onChange={(e) => setConfig({ ...config, provider: e.target.value as any })}
+              onChange={e => setConfig({ ...config, provider: e.target.value as any })}
             >
               <option value="openai">OpenAI</option>
               <option value="google">Google Gemini</option>
@@ -77,12 +79,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <input
               type="text"
               placeholder={
-                config.provider === "openai" ? "gpt-3.5-turbo" :
-                config.provider === "google" ? "gemini-pro" : "qwen-plus"
+                config.provider === 'openai'
+                  ? 'gpt-3.5-turbo'
+                  : config.provider === 'google' ? 'gemini-pro' : 'qwen-plus'
               }
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={config.modelName}
-              onChange={(e) => setConfig({ ...config, modelName: e.target.value })}
+              onChange={e => setConfig({ ...config, modelName: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">
               留空则使用默认模型
@@ -96,10 +99,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               placeholder="请输入对应提供商的 API Key"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={config.apiKey}
-              onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+              onChange={e => setConfig({ ...config, apiKey: e.target.value })}
             />
           </div>
-          
+
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
@@ -118,5 +121,5 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
       </div>
     </div>
-  );
+  )
 }

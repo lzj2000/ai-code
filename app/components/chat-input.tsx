@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
-import type React from "react"
-import { useState } from "react"
-import { Send } from "lucide-react"
+import type React from 'react'
+import { Send } from 'lucide-react'
+import { useState } from 'react'
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void
@@ -10,18 +10,18 @@ interface ChatInputProps {
 }
 
 export default function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
-  const [input, setInput] = useState("")
+  const [input, setInput] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (input.trim() && !isLoading) {
       onSendMessage(input)
-      setInput("")
+      setInput('')
     }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault()
       handleSubmit(e)
     }
@@ -33,7 +33,7 @@ export default function ChatInput({ onSendMessage, isLoading }: ChatInputProps) 
         <div className="flex items-end gap-3 rounded-lg border border-input bg-card p-3 transition-all focus-within:border-foreground/30 focus-within:ring-1 focus-within:ring-foreground/10">
           <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="输入你的问题..."
             disabled={isLoading}
