@@ -1,6 +1,6 @@
 import type { AIMessage } from '@langchain/core/messages'
 import type { RunnableConfig } from '@langchain/core/runnables'
-import type { ModelConfig } from './modelFactory.js'
+import type { ModelConfig } from './utils/modelFactory.js'
 import path from 'node:path'
 import process from 'node:process'
 import {
@@ -13,8 +13,8 @@ import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite'
 import { ToolNode } from '@langchain/langgraph/prebuilt'
 import Database from 'better-sqlite3'
 import { initSessionTable } from './db'
-import { createModel } from './modelFactory.js'
 import { getAllTools } from './tools'
+import { createModel } from './utils/modelFactory.js'
 import '../utils/loadEnv'
 
 // 初始化工具节点

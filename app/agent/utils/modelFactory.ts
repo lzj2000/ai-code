@@ -4,7 +4,7 @@ import type { AIMessageChunk } from '@langchain/core/messages'
 import type { Runnable } from '@langchain/core/runnables'
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
 import { ChatOpenAI } from '@langchain/openai'
-import { getAllTools } from './tools'
+import { getAllTools } from '../tools'
 
 export type ModelProvider = 'openai' | 'google' | 'qwen'
 
