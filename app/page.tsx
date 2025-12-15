@@ -121,59 +121,61 @@ export default function ChatPage() {
         {/* 消息容器 */}
         <div className="flex-1 overflow-y-auto">
           <div className="flex flex-col space-y-4 p-4 md:p-6">
-            {messages.length === 0 ? (
-              <div className="flex h-full min-h-[60vh] flex-col items-center justify-center">
-                <h2 className="mb-2 text-lg font-medium text-foreground">
-                  有什么可以帮你？
-                </h2>
-                <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
-                  我是你的AI助手，可以回答问题、提供建议或帮你完成各种任务
-                </p>
-                {/* 快捷提示 */}
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {['写一首诗', '解释代码', '头脑风暴'].map((text, index) => (
-                    <button
-                      key={index}
-                      onClick={() => sendMessage(text)}
-                      className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-card-foreground transition-colors hover:bg-accent active:scale-[0.98]"
-                    >
-                      {text}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <>
-                {messages.map((message: Message) => (
-                  <ChatMessage key={message.id} message={message} />
-                ))}
-                {/* 加载状态 */}
-                {isLoading && (
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-3">
-                      <div className="flex gap-1">
-                        <div
-                          className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
-                          style={{ animationDelay: '0ms' }}
+            {messages.length === 0
+              ? (
+                  <div className="flex h-full min-h-[60vh] flex-col items-center justify-center">
+                    <h2 className="mb-2 text-lg font-medium text-foreground">
+                      有什么可以帮你？
+                    </h2>
+                    <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
+                      我是你的AI助手，可以回答问题、提供建议或帮你完成各种任务
+                    </p>
+                    {/* 快捷提示 */}
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {['写一首诗', '解释代码', '头脑风暴'].map((text, index) => (
+                        <button
+                          key={index}
+                          onClick={() => sendMessage(text)}
+                          className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-card-foreground transition-colors hover:bg-accent active:scale-[0.98]"
                         >
-                        </div>
-                        <div
-                          className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
-                          style={{ animationDelay: '150ms' }}
-                        >
-                        </div>
-                        <div
-                          className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
-                          style={{ animationDelay: '300ms' }}
-                        >
-                        </div>
-                      </div>
+                          {text}
+                        </button>
+                      ))}
                     </div>
                   </div>
+                )
+              : (
+                  <>
+                    {messages.map((message: Message) => (
+                      <ChatMessage key={message.id} message={message} />
+                    ))}
+                    {/* 加载状态 */}
+                    {isLoading && (
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-3">
+                          <div className="flex gap-1">
+                            <div
+                              className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+                              style={{ animationDelay: '0ms' }}
+                            >
+                            </div>
+                            <div
+                              className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+                              style={{ animationDelay: '150ms' }}
+                            >
+                            </div>
+                            <div
+                              className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+                              style={{ animationDelay: '300ms' }}
+                            >
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </>
                 )}
-                <div ref={messagesEndRef} />
-              </>
-            )}
           </div>
         </div>
 
