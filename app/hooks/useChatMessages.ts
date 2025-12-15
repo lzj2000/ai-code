@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
-import { v4 as uuidv4 } from "uuid";
-import type { Message } from "../page";
+import type { Message } from '../page'
+import { useCallback, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 
 /**
  * 初始欢迎消息
@@ -8,9 +8,9 @@ import type { Message } from "../page";
  */
 export function useChatMessages() {
   // 消息列表状态,默认为空 (不再显示初始欢迎消息)
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([])
   // 加载状态,标识是否正在发送/接收消息
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false)
 
   /**
    * 添加用户消息
@@ -21,12 +21,12 @@ export function useChatMessages() {
     const userMessage: Message = {
       id: uuidv4(), // 使用 UUID
       content,
-      role: "user",
+      role: 'user',
       timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, userMessage]);
-    return userMessage;
-  }, []);
+    }
+    setMessages(prev => [...prev, userMessage])
+    return userMessage
+  }, [])
 
   /**
    * 添加 AI 助手消息
@@ -36,14 +36,14 @@ export function useChatMessages() {
   const addAssistantMessage = useCallback((): Message => {
     const assistantMessage: Message = {
       id: uuidv4(), // 使用 UUID
-      content: "", // 初始为空,等待流式填充
-      role: "assistant",
+      content: '', // 初始为空,等待流式填充
+      role: 'assistant',
       timestamp: new Date(),
       isStreaming: true, // 标记为流式传输中
-    };
-    setMessages((prev) => [...prev, assistantMessage]);
-    return assistantMessage;
-  }, []);
+    }
+    setMessages(prev => [...prev, assistantMessage])
+    return assistantMessage
+  }, [])
 
   /**
    * 更新消息内容(用于流式响应)
@@ -53,16 +53,16 @@ export function useChatMessages() {
    */
   const updateMessageContent = useCallback(
     (messageId: string, content: string) => {
-      setMessages((prev) =>
-        prev.map((msg) =>
+      setMessages(prev =>
+        prev.map(msg =>
           msg.id === messageId
             ? { ...msg, content: msg.content + content }
-            : msg
-        )
-      );
+            : msg,
+        ),
+      )
     },
-    []
-  );
+    [],
+  )
 
   /**
    * 完成流式传输
@@ -70,35 +70,35 @@ export function useChatMessages() {
    * @param messageId - 消息 ID
    */
   const finishStreaming = useCallback((messageId: string) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === messageId ? { ...msg, isStreaming: false } : msg
-      )
-    );
-  }, []);
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === messageId ? { ...msg, isStreaming: false } : msg,
+      ),
+    )
+  }, [])
 
   /**
    * 添加错误消息
    * 在发生错误时向用户显示友好的错误提示
    * @param content - 错误内容
    */
-  const addErrorMessage = useCallback((content: string = "抱歉，发送消息时出现错误。请稍后重试。") => {
+  const addErrorMessage = useCallback((content: string = '抱歉，发送消息时出现错误。请稍后重试。') => {
     const errorMessage: Message = {
       id: (Date.now() + 1).toString(),
       content,
-      role: "assistant",
+      role: 'assistant',
       timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, errorMessage]);
-  }, []);
+    }
+    setMessages(prev => [...prev, errorMessage])
+  }, [])
 
   /**
    * 重置消息列表
    * 恢复到初始状态(空)
    */
   const resetMessages = useCallback(() => {
-    setMessages([]);
-  }, []);
+    setMessages([])
+  }, [])
 
   /**
    * 加载历史消息
@@ -106,8 +106,8 @@ export function useChatMessages() {
    * @param historyMessages - 历史消息数组
    */
   const loadMessages = useCallback((historyMessages: Message[]) => {
-    setMessages(historyMessages.length > 0 ? historyMessages : []);
-  }, []);
+    setMessages(historyMessages.length > 0 ? historyMessages : [])
+  }, [])
 
   return {
     messages,
@@ -120,5 +120,5 @@ export function useChatMessages() {
     addErrorMessage,
     resetMessages,
     loadMessages,
-  };
+  }
 }

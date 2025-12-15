@@ -1,10 +1,6 @@
-import type { BaseLanguageModelInput } from '@langchain/core/language_models/base'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
-import type { AIMessageChunk } from '@langchain/core/messages'
-import type { Runnable } from '@langchain/core/runnables'
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
 import { ChatOpenAI } from '@langchain/openai'
-import { getAllTools } from '../tools'
 
 export type ModelProvider = 'openai' | 'google' | 'qwen'
 
@@ -15,14 +11,16 @@ export interface ModelConfig {
   baseUrl?: string
 }
 
-export function createModel(config: ModelConfig): Runnable<BaseLanguageModelInput, AIMessageChunk> {
-  const tools = getAllTools()
+const defaultModelConfig: ModelConfig = {
+  provider: 'openai',
+  modelName: 'gpt-3.5-turbo',
+}
+
+export function createModel(config?: ModelConfig): BaseChatModel {
   let model: BaseChatModel
-
-  if (!config.apiKey) {
-    throw new Error(`请提供 ${config.provider} 的 API Key`)
+  if (!config) {
+    config = defaultModelConfig
   }
-
   switch (config.provider) {
     case 'google':
       model = new ChatGoogleGenerativeAI({
@@ -49,11 +47,6 @@ export function createModel(config: ModelConfig): Runnable<BaseLanguageModelInpu
         streaming: true,
       })
       break
-  }
-
-  // Bind tools to the model
-  if (model.bindTools) {
-    return model.bindTools(tools)
   }
 
   return model

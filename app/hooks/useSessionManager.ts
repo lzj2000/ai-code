@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { getOrCreateThreadId, setThreadId } from '../utils/threadId'
 
 /**
@@ -34,10 +34,10 @@ export function useSessionManager() {
    * @param id - 新会话的 ID
    */
   const createNewSession = useCallback((id: string) => {
-    setThreadId(id)            // 更新本地存储
-    setSessionId(id)           // 更新状态
-    setHasUserMessage(false)   // 重置用户消息标记
-    sidebarRef.current?.fetchSessions?.()  // 刷新侧边栏
+    setThreadId(id) // 更新本地存储
+    setSessionId(id) // 更新状态
+    setHasUserMessage(false) // 重置用户消息标记
+    sidebarRef.current?.fetchSessions?.() // 刷新侧边栏
   }, [])
 
   /**
@@ -62,7 +62,8 @@ export function useSessionManager() {
    */
   const updateSessionName = useCallback(async (name: string) => {
     // 如果已经有用户消息,则不再更新会话名
-    if (hasUserMessage) return
+    if (hasUserMessage)
+      return
 
     try {
       await fetch('/api/chat/sessions', {
@@ -70,12 +71,13 @@ export function useSessionManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: sessionId,
-          name: name.slice(0, 20)  // 截取前 20 个字符
-        })
+          name: name.slice(0, 20), // 截取前 20 个字符
+        }),
       })
-      sidebarRef.current?.fetchSessions?.()  // 刷新侧边栏显示新名称
-      setHasUserMessage(true)                 // 标记已更新
-    } catch (error) {
+      sidebarRef.current?.fetchSessions?.() // 刷新侧边栏显示新名称
+      setHasUserMessage(true) // 标记已更新
+    }
+    catch (error) {
       console.error('更新会话名称失败:', error)
     }
   }, [sessionId, hasUserMessage])
@@ -87,6 +89,6 @@ export function useSessionManager() {
     sidebarRef,
     createNewSession,
     selectSession,
-    updateSessionName
+    updateSessionName,
   }
 }
