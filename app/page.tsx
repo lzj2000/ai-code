@@ -1,26 +1,24 @@
 'use client'
 
+import type { BaseMessage } from '@langchain/core/messages'
 import type { Tool } from './components/tool-selector'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getToolIcon, toolsConfig } from './agent/config/tools.config'
+
 // 导入组件
 import ChatHeader from './components/chat-header'
 import ChatInput from './components/chat-input'
-
 import ChatMessage from './components/chat-message'
 import Sidebar from './components/sidebar'
 import { useChatHistory } from './hooks/useChatHistory'
 import { useChatMessages } from './hooks/useChatMessages'
+
 // 导入自定义 Hooks
 import { useSendMessage } from './hooks/useSendMessage'
 import { useSessionManager } from './hooks/useSessionManager'
 
-export interface Message {
-  id: string
-  content: string
-  role: 'user' | 'assistant'
-  timestamp: Date
+export interface Message extends BaseMessage {
   isStreaming?: boolean
 }
 

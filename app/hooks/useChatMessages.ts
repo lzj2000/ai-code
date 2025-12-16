@@ -1,6 +1,6 @@
 import type { Message } from '../page'
+import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { useCallback, useState } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 
 /**
  * 初始欢迎消息
@@ -13,34 +13,30 @@ export function useChatMessages() {
   const [isLoading, setIsLoading] = useState(false)
 
   /**
-   * 添加用户消息
-   * @param content - 消息内容
+   * 添加用户消息（使用 LangChain HumanMessage）
+   * @param content - 消息内容（文本或多模态内容数组）
    * @returns 创建的消息对象
    */
-  const addUserMessage = useCallback((content: string): Message => {
-    const userMessage: Message = {
-      id: uuidv4(), // 使用 UUID
+  const addUserMessage = useCallback((content: string | Array<any>): Message => {
+    const userMessage = new HumanMessage({
       content,
-      role: 'user',
-      timestamp: new Date(),
-    }
+      id: Date.now().toString(),
+    }) as Message
     setMessages(prev => [...prev, userMessage])
     return userMessage
   }, [])
 
   /**
-   * 添加 AI 助手消息
+   * 添加 AI 助手消息（使用 LangChain AIMessage）
    * 创建一个空的流式消息,用于后续逐步填充内容
    * @returns 创建的消息对象
    */
   const addAssistantMessage = useCallback((): Message => {
-    const assistantMessage: Message = {
-      id: uuidv4(), // 使用 UUID
+    const assistantMessage = new AIMessage({
       content: '', // 初始为空,等待流式填充
-      role: 'assistant',
-      timestamp: new Date(),
-      isStreaming: true, // 标记为流式传输中
-    }
+      id: (Date.now() + 1).toString(),
+    }) as Message
+    assistantMessage.isStreaming = true // 标记为流式传输中
     setMessages(prev => [...prev, assistantMessage])
     return assistantMessage
   }, [])
@@ -51,18 +47,21 @@ export function useChatMessages() {
    * @param messageId - 消息 ID
    * @param content - 要追加的内容
    */
-  const updateMessageContent = useCallback(
-    (messageId: string, content: string) => {
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === messageId
-            ? { ...msg, content: msg.content + content }
-            : msg,
-        ),
-      )
-    },
-    [],
-  )
+  const updateMessageContent = useCallback((messageId: string, content: string) => {
+    setMessages(prev => prev.map((msg) => {
+      if (msg.id === messageId) {
+        // 创建新的 AIMessage 对象，保留流式状态
+        const currentContent = typeof msg.content === 'string' ? msg.content : ''
+        const updatedMessage = new AIMessage({
+          content: currentContent + content,
+          id: msg.id,
+        }) as Message
+        updatedMessage.isStreaming = msg.isStreaming
+        return updatedMessage
+      }
+      return msg
+    }))
+  }, [])
 
   /**
    * 完成流式传输
@@ -70,25 +69,25 @@ export function useChatMessages() {
    * @param messageId - 消息 ID
    */
   const finishStreaming = useCallback((messageId: string) => {
-    setMessages(prev =>
-      prev.map(msg =>
-        msg.id === messageId ? { ...msg, isStreaming: false } : msg,
-      ),
-    )
+    setMessages(prev => prev.map((msg) => {
+      if (msg.id === messageId) {
+        const updatedMsg = msg as Message
+        updatedMsg.isStreaming = false
+        return updatedMsg
+      }
+      return msg
+    }))
   }, [])
 
   /**
    * 添加错误消息
    * 在发生错误时向用户显示友好的错误提示
-   * @param content - 错误内容
    */
-  const addErrorMessage = useCallback((content: string = '抱歉，发送消息时出现错误。请稍后重试。') => {
-    const errorMessage: Message = {
+  const addErrorMessage = useCallback(() => {
+    const errorMessage = new AIMessage({
+      content: '抱歉，发送消息时出现错误。请稍后重试。',
       id: (Date.now() + 1).toString(),
-      content,
-      role: 'assistant',
-      timestamp: new Date(),
-    }
+    }) as Message
     setMessages(prev => [...prev, errorMessage])
   }, [])
 

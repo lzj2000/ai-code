@@ -2,13 +2,13 @@
 
 import type React from 'react'
 import type { Tool } from './tool-selector'
-import { Send } from 'lucide-react'
-import { useState } from 'react'
+import { ImageIcon, Send, X } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { ToolBadge } from './tool-badge'
 import { ToolSelector } from './tool-selector'
 
 interface ChatInputProps {
-  onSendMessage: (message: string, selectedTools?: string[]) => void
+  onSendMessage: (message: string, selectedTools?: string[], images?: File[]) => void
   isLoading: boolean
   availableTools?: Tool[]
 }
@@ -16,12 +16,15 @@ interface ChatInputProps {
 export default function ChatInput({ onSendMessage, isLoading, availableTools = [] }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedTools, setSelectedTools] = useState<string[]>([])
+  const [selectedImages, setSelectedImages] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (input.trim() && !isLoading) {
-      onSendMessage(input, selectedTools)
+    if ((input.trim() || selectedImages.length > 0) && !isLoading) {
+      onSendMessage(input, selectedTools, selectedImages)
       setInput('')
+      setSelectedImages([])
     }
   }
 
@@ -42,15 +45,87 @@ export default function ChatInput({ onSendMessage, isLoading, availableTools = [
     setSelectedTools(prev => prev.filter(id => id !== toolId))
   }
 
+  const handleFiles = (files: File[]) => {
+    // 过滤出图片文件，并确保是有效的 Blob/File 对象
+    const imageFiles = files.filter(file =>
+      file && file instanceof Blob && file.type.startsWith('image/'),
+    )
+    if (imageFiles.length > 0) {
+      setSelectedImages(prev => [...prev, ...imageFiles])
+    }
+  }
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files) {
+      handleFiles(Array.from(files))
+    }
+    // 重置 input，允许重复选择同一文件
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items
+    const files: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.includes('image')) {
+        const file = items[i].getAsFile()
+        if (file)
+          files.push(file)
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault()
+      handleFiles(files)
+    }
+  }
+
+  const handleRemoveImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index))
+  }
+
   return (
     <form onSubmit={handleSubmit} className="border-t border-border bg-background px-4 py-4">
       <div className="mx-auto w-full">
         <div className="relative flex flex-col gap-2 rounded-xl border border-input bg-card p-4 shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
+          {/* 图片预览区域 */}
+          {selectedImages.length > 0 && (
+            <div className="flex flex-wrap gap-3 mb-3 px-1">
+              {selectedImages.map((image, index) => (
+                <div key={index} className="relative group overflow-visible">
+                  <img
+                    src={URL.createObjectURL(image)}
+                    alt={`Preview ${index}`}
+                    className="h-24 w-24 rounded-xl object-cover border border-border/50 shadow-sm"
+                    onLoad={e => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(index)}
+                    className="
+                      absolute -top-2 -right-2 flex items-center justify-center rounded-full
+                      bg-destructive text-destructive-foreground shadow-md ring-2 ring-background z-10 transition-all
+                      /* 移动端 (<768px): 总是显示，调整为更精致的尺寸 */
+                      h-6 w-6 opacity-100
+                      /* PC端 (>=768px): 悬停显示 */
+                      md:h-5 md:w-5 md:opacity-0 md:group-hover:opacity-100 md:group-hover:scale-100 md:scale-90
+                    "
+                    aria-label="删除图片"
+                  >
+                    <X className="h-3.5 w-3.5 md:h-3 md:w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入你的问题..."
+            onPaste={handlePaste}
+            placeholder="输入你的问题，或粘贴图片..."
             disabled={isLoading}
             rows={3}
             className="w-full resize-none bg-transparent text-sm leading-6 text-foreground placeholder-muted-foreground outline-none disabled:opacity-50"
@@ -59,6 +134,24 @@ export default function ChatInput({ onSendMessage, isLoading, availableTools = [
           <div className="flex items-center justify-between mt-2">
             {/* 左侧：工具栏 */}
             <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept="image/*"
+                multiple
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 rounded-full border border-dashed border-muted-foreground/30 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                title="上传图片"
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">图片</span>
+              </button>
+
               {availableTools.length > 0 && (
                 <ToolSelector
                   tools={availableTools}
@@ -100,7 +193,7 @@ export default function ChatInput({ onSendMessage, isLoading, availableTools = [
               </span>
               <button
                 type="submit"
-                disabled={!input.trim() || isLoading}
+                disabled={(!input.trim() && selectedImages.length === 0) || isLoading}
                 className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow transition-all hover:bg-primary/90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
