@@ -1,6 +1,5 @@
 import type { AIMessage } from '@langchain/core/messages'
 import type { ModelConfig } from './utils/modelFactory.js'
-import path from 'node:path'
 import {
   END,
   MessagesAnnotation,

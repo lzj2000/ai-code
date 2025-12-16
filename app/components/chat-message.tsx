@@ -1,5 +1,4 @@
 import type { Message } from '../page'
-import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -8,7 +7,42 @@ interface ChatMessageProps {
 }
 
 export default function ChatMessage({ message }: ChatMessageProps) {
-  const isUser = message.role === 'user'
+  const messageType = message.getType?.() || (message as any)._getType?.()
+  const isUser = messageType === 'human'
+  // 处理不同类型的 content
+  let messageContent = ''
+  const imageUrls: string[] = []
+
+  if (typeof message.content === 'string') {
+    messageContent = message.content
+  }
+  else if (Array.isArray(message.content)) {
+    // 处理数组类型的 content（文本 + 图片）
+    message.content.forEach((block) => {
+      if (typeof block === 'string') {
+        messageContent += block
+      }
+      else if (block && typeof block === 'object') {
+        // 提取文本
+        if ('text' in block && block.text) {
+          messageContent += block.text
+        }
+        // 提取图片 URL
+        if ('image_url' in block && block.image_url) {
+          const imageUrl = block.image_url as any
+          const url = typeof imageUrl === 'string'
+            ? imageUrl
+            : imageUrl?.url
+          if (url) {
+            imageUrls.push(url)
+          }
+        }
+      }
+    })
+  }
+  else {
+    messageContent = JSON.stringify(message.content)
+  }
 
   return (
     <div
@@ -21,6 +55,19 @@ export default function ChatMessage({ message }: ChatMessageProps) {
           : 'rounded-bl-sm bg-card border border-border text-card-foreground shadow-sm'
         }`}
       >
+        {/* 图片展示区域 */}
+        {imageUrls.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {imageUrls.map((url, index) => (
+              <img
+                key={index}
+                src={url}
+                alt={`Uploaded ${index}`}
+                className="max-w-full h-auto rounded-lg object-contain max-h-[300px] bg-background/50"
+              />
+            ))}
+          </div>
+        )}
         <div
           className={`prose prose-sm max-w-none break-words leading-relaxed ${isUser
             ? 'prose-invert dark:prose-neutral'
@@ -28,15 +75,9 @@ export default function ChatMessage({ message }: ChatMessageProps) {
           }`}
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {message.content}
+            {messageContent}
           </ReactMarkdown>
         </div>
-        <p
-          className={`mt-1.5 text-xs ${isUser ? 'text-primary-foreground/60' : 'text-muted-foreground'
-          }`}
-        >
-          {format(message.timestamp, 'HH:mm')}
-        </p>
       </div>
     </div>
   )

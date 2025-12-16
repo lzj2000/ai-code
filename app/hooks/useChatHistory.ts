@@ -1,4 +1,5 @@
 import type { Message } from '../page'
+import { AIMessage, HumanMessage, mapStoredMessagesToChatMessages } from '@langchain/core/messages'
 import { useCallback, useEffect } from 'react'
 
 /**
@@ -7,7 +8,7 @@ import { useCallback, useEffect } from 'react'
  * 功能:
  * - 自动加载指定会话的历史消息
  * - 当会话 ID 变化时自动重新加载
- * - 解析服务器返回的消息格式
+ * - 直接使用 LangChain 原始消息格式，无需转换
  * - 判断会话是否包含用户消息
  *
  * 使用场景:
@@ -28,9 +29,8 @@ export function useChatHistory(
    *
    * 流程:
    * 1. 从 API 获取会话历史
-   * 2. 解析 LangGraph 消息格式
-   * 3. 转换为应用内部的 Message 格式
-   * 4. 更新消息列表和用户消息标记
+   * 2. 直接使用 LangChain 消息对象（无需格式转换）
+   * 3. 更新消息列表和用户消息标记
    *
    * @param threadId - 要加载的会话 ID
    */
@@ -41,35 +41,85 @@ export function useChatHistory(
       const data = await res.json()
 
       if (Array.isArray(data.history) && data.history.length > 0) {
-        // 2. 转换 LangGraph 消息格式到应用格式
-        const historyMsgs: Message[] = data.history.map((msg: {
-          id: string[] | unknown // LangGraph 的消息 ID 格式
-          kwargs?: { content?: string } // 消息内容在 kwargs 中
-        }, idx: number) => {
-          // 3. 根据消息类型判断角色
-          let role: 'user' | 'assistant' = 'assistant'
+        let historyMsgs: Message[] = []
 
-          if (Array.isArray(msg.id) && msg.id.includes('HumanMessage')) {
-            role = 'user' // 用户消息
-          }
-          else if (Array.isArray(msg.id) && (msg.id.includes('AIMessage') || msg.id.includes('AIMessageChunk'))) {
-            role = 'assistant' // AI 消息
-          }
+        try {
+          // 2. 使用 LangChain 的反序列化方法重建消息对象
+          // 首先确保数据是纯 JSON 对象
+          const serializedData = JSON.parse(JSON.stringify(data.history))
 
-          // 4. 构造标准化的消息对象
-          return {
-            id: String(idx + 1), // 使用索引作为 ID
-            content: msg.kwargs?.content || '', // 提取消息内容
-            role,
-            timestamp: new Date(), // 使用当前时间作为时间戳
-          }
-        })
+          historyMsgs = mapStoredMessagesToChatMessages(serializedData) as Message[]
+        }
+        catch (deserializeError) {
+          console.error('反序列化失败，尝试手动重建:', deserializeError)
 
-        // 5. 更新消息列表
+          // 手动重建消息对象作为备选方案
+          historyMsgs = data.history.map((msg: any, idx: number) => {
+            // 多种方式提取消息类型
+            let msgType = null
+
+            // 优先从 id 数组中提取（LangChain 序列化格式）
+            if (msg.id && Array.isArray(msg.id)) {
+              // LangChain 消息的 id 格式: ["langchain_core", "messages", "HumanMessage"]
+              const idArray = msg.id
+              for (const part of idArray) {
+                if (part === 'HumanMessage' || part === 'human') {
+                  msgType = 'human'
+                  break
+                }
+                else if (part === 'AIMessage' || part === 'ai') {
+                  msgType = 'ai'
+                  break
+                }
+              }
+            }
+
+            // 如果没找到，检查 type 字段（但排除 "constructor"）
+            if (!msgType && msg.type && msg.type !== 'constructor') {
+              msgType = msg.type
+            }
+
+            // 如果还是没有，从 kwargs 或 data 中提取
+            if (!msgType) {
+              const msgData = msg.data || msg.kwargs
+              if (msgData) {
+                msgType = msgData.type
+              }
+            }
+
+            // 如果依然无法判断，根据消息顺序推测（偶数=用户，奇数=AI）
+            if (!msgType) {
+              msgType = idx % 2 === 0 ? 'human' : 'ai'
+            }
+
+            const msgData = msg.data || msg.kwargs || msg
+            const content = msgData.content || msg.content || ''
+            const messageId = msgData.id || msg.id
+
+            if (msgType === 'human' || msgType === 'HumanMessage') {
+              return new HumanMessage({
+                content,
+                id: messageId,
+              }) as Message
+            }
+            else {
+              return new AIMessage({
+                content,
+                id: messageId,
+              }) as Message
+            }
+          })
+        }
+
+        // 3. 更新消息列表
         onLoadMessages(historyMsgs)
 
-        // 6. 检查是否有用户消息(用于判断是否需要更新会话名)
-        onHasUserMessage(historyMsgs.some(msg => msg.role === 'user'))
+        // 4. 检查是否有用户消息(用于判断是否需要更新会话名)
+        const hasUserMsg = historyMsgs.some((msg) => {
+          const msgType = msg.getType?.() || (msg as any)._getType?.()
+          return msgType === 'human'
+        })
+        onHasUserMessage(hasUserMsg)
       }
       else {
         // 没有历史记录,重置为初始状态
@@ -77,9 +127,9 @@ export function useChatHistory(
         onHasUserMessage(false)
       }
     }
-    catch {
+    catch (error) {
       // 静默失败,不影响用户体验
-      // 加载失败时也重置为初始状态
+      console.error('加载历史记录失败:', error)
       onLoadMessages([])
       onHasUserMessage(false)
     }

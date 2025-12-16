@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 // 引入uuid生成器
 import { randomUUID } from 'node:crypto'
-import { HumanMessage } from '@langchain/core/messages'
+import { HumanMessage, mapStoredMessageToChatMessage } from '@langchain/core/messages'
 import { NextResponse } from 'next/server'
 import { getApp } from '@/app/agent/chatbot'
 
@@ -11,19 +11,53 @@ export async function POST(request: NextRequest) {
   try {
     const { message, thread_id, modelConfig, selectedTools } = await request.json()
 
-    if (!message || typeof message !== 'string') {
+    if (!message) {
       return NextResponse.json({ error: '无效的消息格式' }, { status: 400 })
     }
 
     // 创建消息对象
-    const userMessage = new HumanMessage(message)
+    // 创建 LangChain 消息对象
+    let userMessage
+    if (typeof message === 'string') {
+      // 字符串格式：创建 HumanMessage
+      userMessage = new HumanMessage(message)
+    }
+    else if (Array.isArray(message)) {
+      // 数组格式：多模态内容（文本 + 图片）
+      userMessage = new HumanMessage({
+        content: message,
+      })
+    }
+    else if (typeof message === 'object' && message !== null) {
+      // 对象格式：尝试重建 LangChain 消息
+      try {
+        userMessage = mapStoredMessageToChatMessage(message)
+      }
+      catch (error) {
+        console.error('重建消息对象失败:', error)
+        // 如果重建失败，尝试提取 content
+        const content = message.content || message.kwargs?.content
+        if (content) {
+          userMessage = new HumanMessage(content)
+        }
+        else {
+          return NextResponse.json({
+            error: '无效的消息格式',
+            detail: '消息对象缺少 content 字段',
+          }, { status: 400 })
+        }
+      }
+    }
+    else {
+      return NextResponse.json({ error: '无效的消息格式' }, { status: 400 })
+    }
+
     // 优先使用前端传入的thread_id，否则自动生成
     const threadId
       = typeof thread_id === 'string' && thread_id ? thread_id : randomUUID()
     const threadConfig = {
       configurable: {
         thread_id: threadId,
-        modelConfig,
       },
     }
 
@@ -33,6 +67,8 @@ export async function POST(request: NextRequest) {
         try {
           // 获取应用实例
           const app = await getApp(modelConfig, selectedTools)
+
+          let completeMessage = null
 
           // 参考 demo，使用 streamEvents 获取流式响应
           for await (const event of app.streamEvents(
@@ -49,14 +85,26 @@ export async function POST(request: NextRequest) {
                   })}\n`
                 controller.enqueue(new TextEncoder().encode(data))
               }
+              // 保存完整的消息对象（用于最后发送）
+              completeMessage = chunk
             }
           }
-          // 发送结束标记
+          // 获取最终状态，包含完整的消息历史
+          const finalState = await app.getState(threadConfig)
+          const allMessages = finalState?.values?.messages || []
+
+          // 序列化消息对象（用于传输）
+          const serializedMessage = completeMessage ? JSON.parse(JSON.stringify(completeMessage)) : null
+          const serializedMessages = allMessages.map((msg: any) => JSON.parse(JSON.stringify(msg)))
+
+          // 发送结束标记，包含序列化的消息对象
           const endData
             = `${JSON.stringify({
               type: 'end',
               status: 'success',
               thread_id: threadId,
+              message: serializedMessage, // 发送序列化的消息对象
+              messages: serializedMessages, // 发送所有序列化的消息历史
             })}\n`
           controller.enqueue(new TextEncoder().encode(endData))
           controller.close()
@@ -109,9 +157,14 @@ export async function GET(request: NextRequest) {
       const state = await app.getState({
         configurable: { thread_id },
       })
+
+      // 序列化消息对象（用于传输）
+      const messages = state?.values?.messages || []
+      const serializedMessages = messages.map((msg: any) => JSON.parse(JSON.stringify(msg)))
+
       return NextResponse.json({
         thread_id,
-        history: state?.values?.messages || [],
+        history: serializedMessages,
       })
     }
     catch (e) {
