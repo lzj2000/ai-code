@@ -1,4 +1,4 @@
-import type { Message } from '../page'
+import type { Message, ToolCall } from '../page'
 import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { useCallback, useState } from 'react'
 
@@ -50,13 +50,15 @@ export function useChatMessages() {
   const updateMessageContent = useCallback((messageId: string, content: string) => {
     setMessages(prev => prev.map((msg) => {
       if (msg.id === messageId) {
-        // 创建新的 AIMessage 对象，保留流式状态
+        // 创建新的 AIMessage 对象，保留流式状态和工具调用信息
         const currentContent = typeof msg.content === 'string' ? msg.content : ''
         const updatedMessage = new AIMessage({
           content: currentContent + content,
           id: msg.id,
         }) as Message
         updatedMessage.isStreaming = msg.isStreaming
+        updatedMessage.toolCallResults = msg.toolCallResults
+        updatedMessage.tool_calls = msg.tool_calls
         return updatedMessage
       }
       return msg
@@ -71,9 +73,13 @@ export function useChatMessages() {
   const finishStreaming = useCallback((messageId: string) => {
     setMessages(prev => prev.map((msg) => {
       if (msg.id === messageId) {
-        const updatedMsg = msg as Message
-        updatedMsg.isStreaming = false
-        return updatedMsg
+        // 创建新对象以确保 React 检测到变化，保留所有属性
+        const updated = {
+          ...msg,
+          isStreaming: false,
+        } as Message
+
+        return updated
       }
       return msg
     }))
@@ -100,6 +106,78 @@ export function useChatMessages() {
   }, [])
 
   /**
+   * 更新消息的工具调用信息
+   * @param messageId - 消息 ID
+   * @param toolCalls - 工具调用数组
+   */
+  const updateToolCalls = useCallback((messageId: string, toolCalls: ToolCall[]) => {
+    setMessages(prev => prev.map((msg) => {
+      if (msg.id === messageId) {
+        const updatedMsg = { ...msg, toolCallResults: toolCalls } as Message
+        return updatedMsg
+      }
+      return msg
+    }))
+  }, [])
+
+  /**
+   * 添加工具调用到消息
+   * @param messageId - 消息 ID
+   * @param toolCall - 要添加的工具调用
+   */
+  const addToolCall = useCallback((messageId: string, toolCall: ToolCall) => {
+    setMessages(prev => prev.map((msg) => {
+      if (msg.id === messageId) {
+        const existing = msg.toolCallResults || []
+        const updatedMsg = {
+          ...msg,
+          toolCallResults: [...existing, toolCall],
+        } as Message
+        return updatedMsg
+      }
+      return msg
+    }))
+  }, [])
+
+  /**
+   * 更新工具调用结果
+   * @param messageId - 消息 ID
+   * @param toolName - 工具名称
+   * @param output - 工具输出结果
+   */
+  const updateToolResult = useCallback((messageId: string, toolName: string, output: any) => {
+    setMessages(prev => prev.map((msg) => {
+      if (msg.id === messageId) {
+        const toolCalls = msg.toolCallResults || []
+        const updatedToolCalls = toolCalls.map(tc =>
+          tc.name === toolName ? { ...tc, output } : tc,
+        )
+        return { ...msg, toolCallResults: updatedToolCalls } as Message
+      }
+      return msg
+    }))
+  }, [])
+
+  /**
+   * 更新工具调用错误
+   * @param messageId - 消息 ID
+   * @param toolName - 工具名称
+   * @param error - 错误信息
+   */
+  const updateToolError = useCallback((messageId: string, toolName: string, error: string) => {
+    setMessages(prev => prev.map((msg) => {
+      if (msg.id === messageId) {
+        const toolCalls = msg.toolCallResults || []
+        const updatedToolCalls = toolCalls.map(tc =>
+          tc.name === toolName ? { ...tc, error } : tc,
+        )
+        return { ...msg, toolCallResults: updatedToolCalls } as Message
+      }
+      return msg
+    }))
+  }, [])
+
+  /**
    * 加载历史消息
    * 用于从服务器加载会话历史记录
    * @param historyMessages - 历史消息数组
@@ -119,5 +197,9 @@ export function useChatMessages() {
     addErrorMessage,
     resetMessages,
     loadMessages,
+    updateToolCalls,
+    addToolCall,
+    updateToolResult,
+    updateToolError,
   }
 }
