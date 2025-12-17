@@ -87,6 +87,42 @@ export async function POST(request: NextRequest) {
               }
               // 保存完整的消息对象（用于最后发送）
               completeMessage = chunk
+            }// 捕获工具调用开始事件
+            else if (event.event === 'on_chat_model_end') {
+              const output = event.data?.output
+              if (output?.tool_calls && output.tool_calls.length > 0) {
+                const toolCallData = `${JSON.stringify({
+                  type: 'tool_calls',
+                  tool_calls: output.tool_calls.map((tc: any) => ({
+                    id: tc.id,
+                    name: tc.name,
+                    args: tc.args,
+                  })),
+                })}\n`
+                controller.enqueue(new TextEncoder().encode(toolCallData))
+              }
+            }
+            // 捕获工具执行结果
+            else if (event.event === 'on_tool_end') {
+              const toolName = event.name
+              const toolOutput = event.data?.output
+              const toolCallData = `${JSON.stringify({
+                type: 'tool_result',
+                name: toolName,
+                output: toolOutput,
+              })}\n`
+              controller.enqueue(new TextEncoder().encode(toolCallData))
+            }
+            // 捕获工具执行错误
+            else if (event.event === 'on_tool_error') {
+              const toolName = event.name
+              const error = event.data?.error
+              const toolErrorData = `${JSON.stringify({
+                type: 'tool_error',
+                name: toolName,
+                error: error?.message || String(error),
+              })}\n`
+              controller.enqueue(new TextEncoder().encode(toolErrorData))
             }
           }
           // 获取最终状态，包含完整的消息历史

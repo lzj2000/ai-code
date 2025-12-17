@@ -18,8 +18,18 @@ import { useChatMessages } from './hooks/useChatMessages'
 import { useSendMessage } from './hooks/useSendMessage'
 import { useSessionManager } from './hooks/useSessionManager'
 
+export interface ToolCall {
+  id: string
+  name: string
+  args: Record<string, any>
+  output?: any
+  error?: string
+}
+
 export interface Message extends BaseMessage {
   isStreaming?: boolean
+  tool_calls?: ToolCall[]
+  toolCallResults?: ToolCall[]
 }
 
 export default function ChatPage() {
@@ -39,6 +49,9 @@ export default function ChatPage() {
     finishStreaming, // 完成流式传输
     addErrorMessage, // 添加错误消息
     loadMessages, // 加载历史消息
+    updateToolCalls, // 更新工具调用
+    updateToolResult, // 更新工具执行结果
+    updateToolError, // 更新工具执行错误
   } = useChatMessages()
 
   // ==================== 会话管理 ====================
@@ -68,6 +81,9 @@ export default function ChatPage() {
     finishStreaming,
     addErrorMessage,
     updateSessionName,
+    updateToolCalls,
+    updateToolResult,
+    updateToolError,
   })
 
   // ==================== 工具配置 ====================

@@ -1,6 +1,7 @@
 import type { Message } from '../page'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ToolCallDisplay } from './ToolCallDisplay'
 
 interface ChatMessageProps {
   message: Message
@@ -68,6 +69,12 @@ export default function ChatMessage({ message }: ChatMessageProps) {
             ))}
           </div>
         )}
+
+        {/* 工具调用展示区域 */}
+        {!isUser && (message.tool_calls || message.toolCallResults) && (
+          <ToolCallDisplay toolCalls={message.toolCallResults || message.tool_calls || []} />
+        )}
+
         <div
           className={`prose prose-sm max-w-none break-words leading-relaxed ${isUser
             ? 'prose-invert dark:prose-neutral'

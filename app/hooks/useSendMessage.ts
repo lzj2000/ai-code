@@ -1,4 +1,4 @@
-import type { Message } from '../page'
+import type { Message, ToolCall } from '../page'
 import { useCallback } from 'react'
 
 /**
@@ -13,6 +13,9 @@ interface UseSendMessageParams {
   finishStreaming: (id: string) => void // 完成流式传输
   addErrorMessage: () => void // 添加错误消息
   updateSessionName: (name: string) => void // 更新会话名称
+  updateToolCalls: (messageId: string, toolCalls: ToolCall[]) => void // 更新工具调用
+  updateToolResult: (messageId: string, toolName: string, output: any) => void // 更新工具结果
+  updateToolError: (messageId: string, toolName: string, error: string) => void // 更新工具错误
 }
 
 export function useSendMessage({
@@ -24,6 +27,9 @@ export function useSendMessage({
   finishStreaming,
   addErrorMessage,
   updateSessionName,
+  updateToolCalls,
+  updateToolResult,
+  updateToolError,
 }: UseSendMessageParams) {
   const sendMessage = useCallback(
     async (input: string, selectedTools?: string[], images?: File[]) => {
@@ -135,9 +141,25 @@ export function useSendMessage({
                 // 处理内容片段
                 if (data.type === 'chunk' && data.content) {
                   updateMessageContent(assistantMessage.id!, data.content)
+                } // 处理工具调用
+                else if (data.type === 'tool_calls' && data.tool_calls) {
+                  updateToolCalls(assistantMessage.id!, data.tool_calls)
+                }
+                // 处理工具执行结果
+                else if (data.type === 'tool_result' && data.name) {
+                  updateToolResult(assistantMessage.id!, data.name, data.output)
+                }
+                // 处理工具执行错误
+                else if (data.type === 'tool_error' && data.name) {
+                  console.error('工具执行错误:', data.name, data.error)
+                  updateToolError(assistantMessage.id!, data.name, data.error || '未知错误')
                 }
                 // 流结束
                 else if (data.type === 'end') {
+                  // 从最终消息中提取工具调用信息(如果有)
+                  if (data.message && data.message.tool_calls) {
+                    updateToolCalls(assistantMessage.id!, data.message.tool_calls)
+                  }
                   finishStreaming(assistantMessage.id!)
                   break
                 }
@@ -175,6 +197,9 @@ export function useSendMessage({
       updateMessageContent,
       finishStreaming,
       addErrorMessage,
+      updateToolCalls,
+      updateToolResult,
+      updateToolError,
     ],
   )
 
