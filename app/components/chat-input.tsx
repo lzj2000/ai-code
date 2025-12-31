@@ -3,41 +3,35 @@
 import type React from 'react'
 import type { Tool } from './tool-selector'
 import { ImageIcon, Send, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { DEFAULT_MODEL_ID } from '../agent/utils/models'
+import { useRef, useState } from 'react'
 import { ModelSelector } from './model-selector'
 import { ToolBadge } from './tool-badge'
 import { ToolSelector } from './tool-selector'
 
 interface ChatInputProps {
-  onSendMessage: (message: string, selectedTools?: string[], images?: File[], modelId?: string) => void
+  onSendMessage: (message: string, selectedTools?: string[], images?: File[]) => void
   isLoading: boolean
   availableTools?: Tool[]
+  selectedModelId: string
+  onModelChange: (modelId: string) => void
 }
 
-export default function ChatInput({ onSendMessage, isLoading, availableTools = [] }: ChatInputProps) {
+export default function ChatInput({
+  onSendMessage,
+  isLoading,
+  availableTools = [],
+  selectedModelId,
+  onModelChange,
+}: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedTools, setSelectedTools] = useState<string[]>([])
   const [selectedImages, setSelectedImages] = useState<File[]>([])
-  const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    const savedModelId = localStorage.getItem('selectedModelId')
-    if (savedModelId) {
-      setSelectedModelId(savedModelId)
-    }
-  }, [])
-
-  const handleModelSelect = (modelId: string) => {
-    setSelectedModelId(modelId)
-    localStorage.setItem('selectedModelId', modelId)
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if ((input.trim() || selectedImages.length > 0) && !isLoading) {
-      onSendMessage(input, selectedTools, selectedImages, selectedModelId)
+      onSendMessage(input, selectedTools, selectedImages)
       setInput('')
       setSelectedImages([])
     }
@@ -151,7 +145,7 @@ export default function ChatInput({ onSendMessage, isLoading, availableTools = [
             <div className="flex flex-wrap items-center gap-2">
               <ModelSelector
                 selectedModelId={selectedModelId}
-                onSelectModel={handleModelSelect}
+                onSelectModel={onModelChange}
                 disabled={isLoading}
               />
 
