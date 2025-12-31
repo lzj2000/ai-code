@@ -32,7 +32,7 @@ export function useSendMessage({
   updateToolError,
 }: UseSendMessageParams) {
   const sendMessage = useCallback(
-    async (input: string, selectedTools?: string[], images?: File[]) => {
+    async (input: string, selectedTools?: string[], images?: File[], modelId?: string) => {
       setIsLoading(true)
 
       try {
@@ -74,14 +74,19 @@ export function useSendMessage({
         }
 
         // 获取模型配置
-        const modelConfigStr = localStorage.getItem('modelConfig')
+        // 如果传入了 modelId，则使用它；否则尝试从 localStorage 获取（兼容旧逻辑）
         let modelConfig
-        if (modelConfigStr) {
-          try {
-            modelConfig = JSON.parse(modelConfigStr)
-          }
-          catch (e) {
-            console.error('解析模型配置失败:', e)
+        if (modelId) {
+          modelConfig = { modelName: modelId }
+        } else {
+          const modelConfigStr = localStorage.getItem('modelConfig')
+          if (modelConfigStr) {
+            try {
+              modelConfig = JSON.parse(modelConfigStr)
+            }
+            catch (e) {
+              console.error('解析模型配置失败:', e)
+            }
           }
         }
 

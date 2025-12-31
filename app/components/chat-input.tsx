@@ -3,12 +3,14 @@
 import type React from 'react'
 import type { Tool } from './tool-selector'
 import { ImageIcon, Send, X } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { DEFAULT_MODEL_ID } from '../agent/utils/models'
+import { ModelSelector } from './model-selector'
 import { ToolBadge } from './tool-badge'
 import { ToolSelector } from './tool-selector'
 
 interface ChatInputProps {
-  onSendMessage: (message: string, selectedTools?: string[], images?: File[]) => void
+  onSendMessage: (message: string, selectedTools?: string[], images?: File[], modelId?: string) => void
   isLoading: boolean
   availableTools?: Tool[]
 }
@@ -17,12 +19,25 @@ export default function ChatInput({ onSendMessage, isLoading, availableTools = [
   const [input, setInput] = useState('')
   const [selectedTools, setSelectedTools] = useState<string[]>([])
   const [selectedImages, setSelectedImages] = useState<File[]>([])
+  const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const savedModelId = localStorage.getItem('selectedModelId')
+    if (savedModelId) {
+      setSelectedModelId(savedModelId)
+    }
+  }, [])
+
+  const handleModelSelect = (modelId: string) => {
+    setSelectedModelId(modelId)
+    localStorage.setItem('selectedModelId', modelId)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if ((input.trim() || selectedImages.length > 0) && !isLoading) {
-      onSendMessage(input, selectedTools, selectedImages)
+      onSendMessage(input, selectedTools, selectedImages, selectedModelId)
       setInput('')
       setSelectedImages([])
     }
@@ -134,6 +149,14 @@ export default function ChatInput({ onSendMessage, isLoading, availableTools = [
           <div className="flex items-center justify-between mt-2">
             {/* 左侧：工具栏 */}
             <div className="flex flex-wrap items-center gap-2">
+              <ModelSelector
+                selectedModelId={selectedModelId}
+                onSelectModel={handleModelSelect}
+                disabled={isLoading}
+              />
+
+              <div className="h-4 w-px bg-border/50 mx-1" />
+
               <input
                 type="file"
                 ref={fileInputRef}

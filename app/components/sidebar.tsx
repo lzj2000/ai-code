@@ -8,13 +8,11 @@ import {
   Moon,
   Pencil,
   Plus,
-  Settings,
   Sun,
   Trash2,
   X,
 } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import SettingsModal from './settings-modal'
 
 interface Session {
   id: string
@@ -39,7 +37,7 @@ const Sidebar = forwardRef((
   const [sessions, setSessions] = useState<Session[]>([])
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [newSessionName, setNewSessionName] = useState('')
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
   async function fetchSessions() {
     try {
       const res = await fetch('/api/chat/sessions')
@@ -197,84 +195,81 @@ const Sidebar = forwardRef((
             {sessions.map(conv => (
               <div
                 key={conv.id}
-                className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${currentSessionId === conv.id
-                  ? 'bg-sidebar-accent'
-                  : 'hover:bg-sidebar-accent'
-                } ${isCollapsed ? 'justify-center px-2' : ''}`}
-                title={conv.name}
+                className={`group relative flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${currentSessionId === conv.id ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/50'
+                }`}
                 onClick={() => onSelect(conv.id)}
               >
-                {isCollapsed
+                {!isCollapsed
                   ? (
-                      <span className="text-sm font-medium text-muted-foreground">
-                        {conv.name.charAt(0)}
-                      </span>
+                      <>
+                        {editingSessionId === conv.id
+                          ? (
+                              <div className="flex flex-1 items-center gap-1" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="text"
+                                  value={newSessionName}
+                                  onChange={e => setNewSessionName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter')
+                                      saveRename(conv.id)
+                                    if (e.key === 'Escape')
+                                      setEditingSessionId(null)
+                                  }}
+                                  onBlur={() => saveRename(conv.id)}
+                                  className="w-full rounded border border-input bg-background px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-primary"
+                                  autoFocus
+                                />
+                                <button
+                                  className="p-1 text-primary hover:text-primary/80"
+                                  onClick={() => saveRename(conv.id)}
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  className="p-1 text-muted-foreground hover:text-destructive"
+                                  onClick={() => setEditingSessionId(null)}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            )
+                          : (
+                              <>
+                                <div className="flex-1 overflow-hidden group/item">
+                                  <p className="truncate text-sm text-sidebar-foreground">
+                                    {conv.name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {conv.created_at}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                                  <button
+                                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-primary hover:shadow-sm transition-all"
+                                    onClick={e => startRename(conv.id, conv.name, e)}
+                                    title="重命名"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-destructive hover:shadow-sm transition-all"
+                                    onClick={(e) => {
+                                      handleDelete(conv.id, e)
+                                    }}
+                                    title="删除对话"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                      </>
                     )
-                  : editingSessionId === conv.id
-                    ? (
-                        <div
-                          className="flex flex-1 items-center gap-1 overflow-hidden"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <input
-                            autoFocus
-                            type="text"
-                            value={newSessionName}
-                            onChange={e => setNewSessionName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter')
-                                saveRename(conv.id)
-                              if (e.key === 'Escape')
-                                setEditingSessionId(null)
-                            }}
-                            className="h-6 w-full flex-1 rounded-sm border border-input bg-background px-2 py-0 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                          />
-                          <button
-                            className="flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-primary"
-                            onClick={() => saveRename(conv.id)}
-                            title="保存"
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            className="flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-destructive"
-                            onClick={() => setEditingSessionId(null)}
-                            title="取消"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )
-                    : (
-                        <div className="flex flex-1 items-center gap-3 overflow-hidden">
-                          <div className="flex-1 overflow-hidden group/item">
-                            <p className="truncate text-sm text-sidebar-foreground">
-                              {conv.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {conv.created_at}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                            <button
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-primary hover:shadow-sm transition-all"
-                              onClick={e => startRename(conv.id, conv.name, e)}
-                              title="重命名"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-destructive hover:shadow-sm transition-all"
-                              onClick={(e) => {
-                                handleDelete(conv.id, e)
-                              }}
-                              title="删除对话"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                  : (
+                      <div className="relative mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground font-medium text-xs">
+                        {conv.name.slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
               </div>
             ))}
           </div>
@@ -282,20 +277,6 @@ const Sidebar = forwardRef((
 
         {/* 底部设置与主题切换 */}
         <div className="border-t border-sidebar-border p-3 space-y-1">
-          <button
-            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-sidebar-accent transition-colors ${isCollapsed ? 'w-10 h-10 p-0 justify-center mx-auto' : 'w-full'
-            }`}
-            onClick={() => setIsSettingsOpen(true)}
-            title="模型设置"
-          >
-            <Settings className="h-4 w-4 text-muted-foreground" />
-            {!isCollapsed && (
-              <span className="text-muted-foreground">
-                模型设置
-              </span>
-            )}
-          </button>
-
           <button
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-sidebar-accent transition-colors ${isCollapsed ? 'w-10 h-10 p-0 justify-center mx-auto' : 'w-full'
             }`}
@@ -318,7 +299,6 @@ const Sidebar = forwardRef((
           </button>
         </div>
       </div>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </>
   )
 })
