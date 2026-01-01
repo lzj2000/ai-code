@@ -5,6 +5,7 @@ import type { Tool } from './components/tool-selector'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getToolIcon, toolsConfig } from './agent/config/tools.config'
+import { DEFAULT_MODEL_ID } from './agent/utils/models'
 
 // 导入组件
 import ChatHeader from './components/chat-header'
@@ -35,7 +36,21 @@ export interface Message extends BaseMessage {
 export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // 初始化加载模型选择
+  useEffect(() => {
+    const savedModelId = localStorage.getItem('selectedModelId')
+    if (savedModelId) {
+      setSelectedModelId(savedModelId)
+    }
+  }, [])
+
+  const handleModelChange = (modelId: string) => {
+    setSelectedModelId(modelId)
+    localStorage.setItem('selectedModelId', modelId)
+  }
 
   // ==================== 消息管理 ====================
   // 使用 useChatMessages hook 管理所有消息相关的状态和方法
@@ -84,6 +99,7 @@ export default function ChatPage() {
     updateToolCalls,
     updateToolResult,
     updateToolError,
+    modelId: selectedModelId,
   })
 
   // ==================== 工具配置 ====================
@@ -194,7 +210,13 @@ export default function ChatPage() {
         </div>
 
         {/* 输入区域 */}
-        <ChatInput availableTools={availableTools} onSendMessage={sendMessage} isLoading={isLoading} />
+        <ChatInput
+          availableTools={availableTools}
+          onSendMessage={sendMessage}
+          isLoading={isLoading}
+          selectedModelId={selectedModelId}
+          onModelChange={handleModelChange}
+        />
       </div>
     </div>
   )

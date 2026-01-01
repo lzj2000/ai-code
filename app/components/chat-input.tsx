@@ -4,6 +4,7 @@ import type React from 'react'
 import type { Tool } from './tool-selector'
 import { ImageIcon, Send, X } from 'lucide-react'
 import { useRef, useState } from 'react'
+import { ModelSelector } from './model-selector'
 import { ToolBadge } from './tool-badge'
 import { ToolSelector } from './tool-selector'
 
@@ -11,9 +12,17 @@ interface ChatInputProps {
   onSendMessage: (message: string, selectedTools?: string[], images?: File[]) => void
   isLoading: boolean
   availableTools?: Tool[]
+  selectedModelId: string
+  onModelChange: (modelId: string) => void
 }
 
-export default function ChatInput({ onSendMessage, isLoading, availableTools = [] }: ChatInputProps) {
+export default function ChatInput({
+  onSendMessage,
+  isLoading,
+  availableTools = [],
+  selectedModelId,
+  onModelChange,
+}: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedTools, setSelectedTools] = useState<string[]>([])
   const [selectedImages, setSelectedImages] = useState<File[]>([])
@@ -134,6 +143,14 @@ export default function ChatInput({ onSendMessage, isLoading, availableTools = [
           <div className="flex items-center justify-between mt-2">
             {/* 左侧：工具栏 */}
             <div className="flex flex-wrap items-center gap-2">
+              <ModelSelector
+                selectedModelId={selectedModelId}
+                onSelectModel={onModelChange}
+                disabled={isLoading}
+              />
+
+              <div className="h-4 w-px bg-border/50 mx-1" />
+
               <input
                 type="file"
                 ref={fileInputRef}

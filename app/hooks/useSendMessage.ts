@@ -16,6 +16,7 @@ interface UseSendMessageParams {
   updateToolCalls: (messageId: string, toolCalls: ToolCall[]) => void // 更新工具调用
   updateToolResult: (messageId: string, toolName: string, output: any) => void // 更新工具结果
   updateToolError: (messageId: string, toolName: string, error: string) => void // 更新工具错误
+  modelId: string // 当前选中的模型 ID
 }
 
 export function useSendMessage({
@@ -30,6 +31,7 @@ export function useSendMessage({
   updateToolCalls,
   updateToolResult,
   updateToolError,
+  modelId,
 }: UseSendMessageParams) {
   const sendMessage = useCallback(
     async (input: string, selectedTools?: string[], images?: File[]) => {
@@ -74,16 +76,8 @@ export function useSendMessage({
         }
 
         // 获取模型配置
-        const modelConfigStr = localStorage.getItem('modelConfig')
-        let modelConfig
-        if (modelConfigStr) {
-          try {
-            modelConfig = JSON.parse(modelConfigStr)
-          }
-          catch (e) {
-            console.error('解析模型配置失败:', e)
-          }
-        }
+        // 使用传入的 modelId
+        const modelConfig = { modelName: modelId }
 
         // 2. 添加用户消息（支持多模态）
         addUserMessage(messageContent)
@@ -200,6 +194,7 @@ export function useSendMessage({
       updateToolCalls,
       updateToolResult,
       updateToolError,
+      modelId,
     ],
   )
 
