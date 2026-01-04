@@ -141,7 +141,10 @@ export function useSendMessage({
                 }
                 // 处理工具执行结果
                 else if (data.type === 'tool_result' && data.name) {
-                  updateToolResult(assistantMessage.id!, data.name, data.output)
+                  // 兼容新旧格式：优先使用 data.data.output，降级到 data.output
+                  const output = data.data?.output ?? data.output
+
+                  updateToolResult(assistantMessage.id!, data.name, output)
                 }
                 // 处理工具执行错误
                 else if (data.type === 'tool_error' && data.name) {

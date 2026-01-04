@@ -1,114 +1,175 @@
-import type { ToolConfig } from '../types/tool.types'
+import type { UnifiedToolConfig } from '../types/tool.types'
 import { calculatorTool } from '../tools/calculator.tool'
 import { currentTimeTool } from '../tools/current-time.tool'
 
-// 重新导出 ToolConfig 类型，保持向后兼容
-export type { ToolConfig }
-
-// 基础工具配置
-export const toolsConfig: Record<string, ToolConfig<any>> = {
-  calculator: calculatorTool,
-  current_time: currentTimeTool,
-}
-
-export function getToolIcon(toolId: string): string {
-  const iconMap: Record<string, string> = {
-    calculator: '🔢',
-    current_time: '🕐',
-  }
-  return iconMap[toolId] || '🛠️'
-}
-
-// 环境配置
-export interface EnvironmentConfig {
-  development: {
-    enabledTools: string[]
-    debugMode: boolean
-  }
-  production: {
-    enabledTools: string[]
-    debugMode: boolean
-  }
-  test: {
-    enabledTools: string[]
-    debugMode: boolean
-  }
-}
-
-export const environmentConfig: EnvironmentConfig = {
-  development: {
-    enabledTools: ['calculator'],
-    debugMode: true,
+/**
+ * 统一工具配置
+ * 三种工具类型：custom（自定义）、langchain（LangChain 预构建）、mcp（MCP 工具）
+ *
+ * 前端：用于工具选择器显示
+ * 后端：用于加载和初始化工具
+ */
+export const unifiedToolsConfig: UnifiedToolConfig[] = [
+  // ==================== 自定义工具 ====================
+  {
+    id: 'calculator',
+    name: '计算器',
+    description: '执行数学计算，支持基本运算和复杂表达式',
+    icon: '🔢',
+    enabled: true,
+    type: 'custom',
+    schema: calculatorTool.schema,
+    handler: calculatorTool.handler,
   },
-  production: {
-    enabledTools: ['calculator'],
-    debugMode: false,
+  {
+    id: 'current_time',
+    name: '当前时间',
+    description: '获取当前日期和时间',
+    icon: '🕐',
+    enabled: true,
+    type: 'custom',
+    schema: currentTimeTool.schema,
+    handler: currentTimeTool.handler,
   },
-  test: {
-    enabledTools: ['calculator'],
-    debugMode: true,
+
+  // ==================== LangChain 预构建工具 ====================
+  // 工具列表: https://docs.langchain.com/oss/javascript/integrations/tools
+  {
+    id: 'tavily',
+    name: 'Tavily 搜索',
+    description: '使用 Tavily API 进行真实网络搜索',
+    icon: '🌐',
+    enabled: true,
+    type: 'langchain',
+    langChainTool: {
+      importPath: '@langchain/tavily',
+      className: 'TavilySearch',
+      options: {
+        maxResults: 5,
+        searchDepth: 'basic',
+        includeAnswer: true,
+        includeRawContent: false,
+        includeImages: false,
+      },
+    },
   },
+
+  // ==================== MCP 工具 ====================
+  {
+    id: 'sequential-thinking',
+    name: '顺序思考',
+    description: '通过结构化的思考过程帮助 AI 解决复杂问题',
+    icon: '🧠',
+    enabled: true,
+    type: 'mcp',
+    mcpServer: 'server-sequential-thinking',
+    mcpConfig: {
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
+      transport: 'stdio',
+    },
+  },
+  // {
+  //   id: 'filesystem',
+  //   name: '文件系统',
+  //   description: '访问和操作 public 目录下的文件',
+  //   icon: '📁',
+  //   enabled: true,
+  //   type: 'mcp',
+  //   mcpServer: 'filesystem',
+  //   mcpConfig: {
+  //     command: 'npx',
+  //     args: ['-y', '@modelcontextprotocol/server-filesystem', path.join(process.cwd(), 'public')],
+  //     transport: 'stdio',
+  //   },
+  // },
+  // {
+  //   id: 'playwright',
+  //   name: '浏览器自动化',
+  //   description: '使用 Playwright 进行浏览器自动化操作',
+  //   icon: '🌐',
+  //   enabled: false,
+  //   type: 'mcp',
+  //   mcpServer: 'playwright',
+  //   mcpConfig: {
+  //     command: 'npx',
+  //     args: ['-y', '@playwright/mcp@latest'],
+  //     transport: 'stdio',
+  //   },
+  // },
+]
+
+/**
+ * 获取所有启用的工具配置
+ */
+export function getEnabledTools(): UnifiedToolConfig[] {
+  return unifiedToolsConfig.filter(tool => tool.enabled)
 }
 
-// 获取当前环境配置
-export function getCurrentEnvironmentConfig() {
-  const env = process.env.NODE_ENV || 'development'
-  return (
-    environmentConfig[env as keyof EnvironmentConfig]
-    || environmentConfig.development
-  )
+/**
+ * 获取自定义工具配置（type = 'custom'）
+ */
+export function getCustomTools(): UnifiedToolConfig[] {
+  return unifiedToolsConfig.filter(tool => tool.type === 'custom' && tool.enabled)
 }
 
-// 获取启用的工具配置
-export function getEnabledToolsConfig(): Record<string, ToolConfig> {
-  const envConfig = getCurrentEnvironmentConfig()
-  const enabledTools: Record<string, ToolConfig> = {}
+/**
+ * 获取 LangChain 工具配置（type = 'langchain'）
+ */
+export function getLangChainTools(): UnifiedToolConfig[] {
+  return unifiedToolsConfig.filter(tool => tool.type === 'langchain' && tool.enabled)
+}
 
-  for (const toolName of envConfig.enabledTools) {
-    const toolConfig = toolsConfig[toolName]
-    if (toolConfig && toolConfig.enabled) {
-      enabledTools[toolName] = toolConfig
+/**
+ * 获取 MCP 工具配置（type = 'mcp'）
+ */
+export function getMCPTools(): UnifiedToolConfig[] {
+  return unifiedToolsConfig.filter(tool => tool.type === 'mcp' && tool.enabled)
+}
+
+/**
+ * 根据 ID 获取工具配置
+ */
+export function getToolById(id: string): UnifiedToolConfig | undefined {
+  return unifiedToolsConfig.find(tool => tool.id === id)
+}
+
+/**
+ * 获取 MCP 服务器配置（用于 MultiServerMCPClient）
+ */
+export function getMCPServersConfig(): Record<string, {
+  command: string
+  args: string[]
+  transport?: 'stdio' | 'sse' | 'http'
+}> {
+  const mcpTools = getMCPTools()
+  const config: Record<string, any> = {}
+
+  for (const tool of mcpTools) {
+    if (tool.mcpServer && tool.mcpConfig) {
+      config[tool.mcpServer] = {
+        command: tool.mcpConfig.command,
+        args: tool.mcpConfig.args,
+        transport: tool.mcpConfig.transport || 'stdio',
+      }
     }
   }
 
-  return enabledTools
+  return config
 }
 
-// 工具配置验证
-export function validateToolConfig(config: ToolConfig): boolean {
-  return !!(
-    config.name
-    && config.description
-    && config.schema
-    && typeof config.handler === 'function'
-    && typeof config.enabled === 'boolean'
-  )
+/**
+ * 获取环境配置中默认启用的工具 ID 列表
+ */
+export const environmentDefaults = {
+  development: ['calculator', 'current_time', 'tavily', 'sequential-thinking'],
+  production: ['calculator', 'current_time', 'tavily', 'sequential-thinking'],
+  test: ['calculator', 'current_time'],
 }
 
-// 动态添加工具配置
-export function addToolConfig<T = Record<string, unknown>>(name: string, config: Omit<ToolConfig<T>, 'name'>) {
-  const fullConfig: ToolConfig<T> = {
-    name,
-    ...config,
-  }
-
-  if (!validateToolConfig(fullConfig as ToolConfig)) {
-    throw new Error(`Invalid tool configuration for ${name}`)
-  }
-
-  toolsConfig[name] = fullConfig as ToolConfig
-}
-
-// 禁用工具
-export function disableTool(name: string) {
-  if (toolsConfig[name]) {
-    toolsConfig[name].enabled = false
-  }
-}
-
-// 启用工具
-export function enableTool(name: string) {
-  if (toolsConfig[name]) {
-    toolsConfig[name].enabled = true
-  }
+/**
+ * 获取当前环境的默认工具列表
+ */
+export function getDefaultToolsForEnv(env: string = process.env.NODE_ENV || 'development'): string[] {
+  return environmentDefaults[env as keyof typeof environmentDefaults] || environmentDefaults.development
 }

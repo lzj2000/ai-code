@@ -23,12 +23,12 @@ const workflowCache = new Map()
  * @param config 模型配置
  * @param toolIds 工具 ID 列表
  */
-function createWorkflow(config?: ModelConfig, toolIds?: string[]) {
+async function createWorkflow(config?: ModelConfig, toolIds?: string[]) {
   // 创建模型实例
   const model = createModel(config)
 
   // 创建工具实例
-  const tools = createLangChainTools(toolIds)
+  const tools = await createLangChainTools(toolIds)
 
   // 绑定工具到模型
   const modelWithTools = tools.length > 0 ? model.bindTools!(tools) : model
@@ -120,7 +120,7 @@ async function getApp(config?: ModelConfig, toolIds?: string[]) {
   }
 
   // 创建新的 workflow
-  const workflow = createWorkflow(config, toolIds)
+  const workflow = await createWorkflow(config, toolIds)
   const app = workflow.compile({ checkpointer })
 
   // 缓存 workflow（限制缓存大小）

@@ -2,6 +2,13 @@ import type { Message, ToolCall } from '../page'
 import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { useCallback, useState } from 'react'
 
+function normalizeToolName(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[\s-]+/g, '_')
+    .toLowerCase()
+}
+
 /**
  * 初始欢迎消息
  * 在新会话开始时显示给用户
@@ -149,9 +156,12 @@ export function useChatMessages() {
     setMessages(prev => prev.map((msg) => {
       if (msg.id === messageId) {
         const toolCalls = msg.toolCallResults || []
-        const updatedToolCalls = toolCalls.map(tc =>
-          tc.name === toolName ? { ...tc, output } : tc,
-        )
+        const normalizedIncomingName = normalizeToolName(toolName)
+        const updatedToolCalls = toolCalls.map((tc) => {
+          const isSameTool
+            = tc.name === toolName || normalizeToolName(tc.name) === normalizedIncomingName
+          return isSameTool ? { ...tc, output } : tc
+        })
         return { ...msg, toolCallResults: updatedToolCalls } as Message
       }
       return msg
@@ -168,9 +178,12 @@ export function useChatMessages() {
     setMessages(prev => prev.map((msg) => {
       if (msg.id === messageId) {
         const toolCalls = msg.toolCallResults || []
-        const updatedToolCalls = toolCalls.map(tc =>
-          tc.name === toolName ? { ...tc, error } : tc,
-        )
+        const normalizedIncomingName = normalizeToolName(toolName)
+        const updatedToolCalls = toolCalls.map((tc) => {
+          const isSameTool
+            = tc.name === toolName || normalizeToolName(tc.name) === normalizedIncomingName
+          return isSameTool ? { ...tc, error } : tc
+        })
         return { ...msg, toolCallResults: updatedToolCalls } as Message
       }
       return msg
