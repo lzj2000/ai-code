@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { createSession, deleteSession, getAllSessions, updateSessionName } from '@/app/agent/db'
+import { sessionService } from '@/app/services'
 
 export async function GET() {
   try {
-    const sessions = getAllSessions()
+    const sessions = sessionService.getAllSessions()
     return NextResponse.json({ sessions })
   }
   catch (e) {
@@ -18,8 +17,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const { name } = await request.json()
-    const id = randomUUID()
-    createSession(id, name || `新会话-${id.slice(0, 8)}`)
+    const { id } = sessionService.createSession({ name })
     return NextResponse.json({ id })
   }
   catch (e) {
@@ -35,7 +33,7 @@ export async function DELETE(request: Request) {
     const { id } = await request.json()
     if (!id)
       return NextResponse.json({ error: '缺少 id' }, { status: 400 })
-    deleteSession(id)
+    sessionService.deleteSession({ id })
     return NextResponse.json({ success: true })
   }
   catch (e) {
@@ -51,7 +49,7 @@ export async function PATCH(request: Request) {
     const { id, name } = await request.json()
     if (!id || !name)
       return NextResponse.json({ error: '缺少参数' }, { status: 400 })
-    updateSessionName(id, name)
+    sessionService.updateSessionName({ id, name })
     return NextResponse.json({ success: true })
   }
   catch (e) {
