@@ -51,3 +51,24 @@ export interface ServiceResult<T = any> {
   error?: string
   message?: string
 }
+
+// Auth 相关类型
+export interface LoginWithPasswordInput {
+  email: string
+  password: string
+}
+
+export interface SignUpWithEmailInput {
+  email: string
+  password: string
+  name: string
+  redirectTo: string
+}
+
+export interface LogoutWithTokenInput {
+  accessToken: string
+}
+
+export interface ExchangeCodeForSessionInput {
+  code: string
+}
