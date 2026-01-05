@@ -4,7 +4,7 @@ import type { BaseMessage } from '@langchain/core/messages'
 import type { Tool } from './components/tool-selector'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getToolIcon, toolsConfig } from './agent/config/tools.config'
+import { unifiedToolsConfig } from './agent/config/tools.config'
 import { DEFAULT_MODEL_ID } from './agent/utils/models'
 
 // 导入组件
@@ -105,13 +105,13 @@ export default function ChatPage() {
   // ==================== 工具配置 ====================
   // 将后端工具配置转换为前端 Tool 格式
   const availableTools = useMemo<Tool[]>(() => {
-    return Object.entries(toolsConfig)
-      .filter(([_, config]) => config.enabled)
-      .map(([id, config]) => ({
-        id,
-        name: config.name,
-        description: config.description,
-        icon: getToolIcon(id), // 根据工具 ID 获取对应图标
+    return unifiedToolsConfig
+      .filter(tool => tool.enabled)
+      .map(tool => ({
+        id: tool.id,
+        name: tool.name,
+        description: tool.description,
+        icon: tool.icon || '⚙',
       }))
   }, [])
 

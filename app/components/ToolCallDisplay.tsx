@@ -24,6 +24,7 @@ export function ToolCallDisplay({ toolCalls }: ToolCallDisplayProps) {
 
 function ToolCallItem({ toolCall }: { toolCall: ToolCall }) {
   const [isExpanded, setIsExpanded] = useState(false)
+
   const hasOutput = toolCall.output !== undefined
   const hasError = toolCall.error !== undefined
   const isExecuting = !hasOutput && !hasError
