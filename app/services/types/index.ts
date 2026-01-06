@@ -16,8 +16,8 @@ export interface ChatMessageInput {
 
 export interface ChatHistoryQuery {
   thread_id: string
-  userId?: string;
-  authenticatedClient?: any;
+  userId?: string
+  authenticatedClient?: any
 }
 
 export interface ChatHistoryResult {

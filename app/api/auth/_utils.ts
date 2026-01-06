@@ -1,7 +1,6 @@
 import type { NextResponse } from 'next/server'
 
 export const ACCESS_TOKEN_COOKIE = 'sb-access-token'
-export const REFRESH_TOKEN_COOKIE = 'sb-refresh-token'
 
 export const COOKIE_BASE_OPTIONS = {
   httpOnly: true,
@@ -56,24 +55,16 @@ export function getCookieValueFromHeader(request: Request, name: string): string
 
 export function clearAuthCookies(response: NextResponse) {
   response.cookies.delete(ACCESS_TOKEN_COOKIE)
-  response.cookies.delete(REFRESH_TOKEN_COOKIE)
 }
 
 export function setAuthCookiesFromSession(response: NextResponse, session: any) {
-  if (!session?.access_token && !session?.refresh_token)
+  if (!session?.access_token)
     return
 
   const maxAge = typeof session.expires_in === 'number' ? session.expires_in : 60 * 60 * 24 * 7
 
   if (session?.access_token) {
     response.cookies.set(ACCESS_TOKEN_COOKIE, session.access_token, {
-      ...COOKIE_BASE_OPTIONS,
-      maxAge,
-    })
-  }
-
-  if (session?.refresh_token) {
-    response.cookies.set(REFRESH_TOKEN_COOKIE, session.refresh_token, {
       ...COOKIE_BASE_OPTIONS,
       maxAge,
     })

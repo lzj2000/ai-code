@@ -4,6 +4,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  LogOut,
   Menu,
   Moon,
   Pencil,
@@ -13,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
+import { useAuth } from '@/app/context/AuthContext'
 
 interface Session {
   id: string
@@ -34,6 +36,7 @@ const Sidebar = forwardRef((
   { isOpen, onToggle, isCollapsed, onCollapse, currentSessionId, onSelect, onNew }: SidebarProps,
   ref,
 ) => {
+  const { logout } = useAuth()
   const [sessions, setSessions] = useState<Session[]>([])
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [newSessionName, setNewSessionName] = useState('')
@@ -277,6 +280,20 @@ const Sidebar = forwardRef((
 
         {/* 底部设置与主题切换 */}
         <div className="border-t border-sidebar-border p-3 space-y-1">
+          <button
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-sidebar-accent transition-colors ${isCollapsed ? 'w-10 h-10 p-0 justify-center mx-auto' : 'w-full'
+            }`}
+            onClick={logout}
+            name="退出登录"
+            title="退出登录"
+          >
+            <LogOut className="h-4 w-4 text-muted-foreground" />
+            {!isCollapsed && (
+              <span className="text-muted-foreground">
+                退出登录
+              </span>
+            )}
+          </button>
           <button
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-sidebar-accent transition-colors ${isCollapsed ? 'w-10 h-10 p-0 justify-center mx-auto' : 'w-full'
             }`}

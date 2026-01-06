@@ -1,5 +1,4 @@
 import type { AIMessage } from '@langchain/core/messages'
-import type { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ModelConfig } from './utils/modelFactory.js'
 import {

@@ -3,7 +3,6 @@ import type {
   CreateSessionInput,
   CreateSessionResult,
   DeleteSessionInput,
-  Session,
   UpdateSessionInput,
 } from './types'
 import { randomUUID } from 'node:crypto'
