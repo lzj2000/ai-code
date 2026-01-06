@@ -55,7 +55,7 @@ const Sidebar = forwardRef((
 
   useEffect(() => {
     fetchSessions()
-  }, [currentSessionId])
+  }, [])
 
   async function handleNew() {
     const res = await fetch('/api/chat/sessions', {

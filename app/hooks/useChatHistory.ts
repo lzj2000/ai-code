@@ -36,6 +36,8 @@ export function useChatHistory(
    */
   const loadHistory = useCallback(async (threadId: string) => {
     try {
+      // 先清空消息列表
+      onLoadMessages([])
       // 1. 请求历史记录
       const res = await fetch(`/api/chat?thread_id=${threadId}`)
       const data = await res.json()
