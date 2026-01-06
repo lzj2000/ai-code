@@ -16,6 +16,7 @@
     "@langchain/mcp-adapters": "^1.1.1",
     "@langchain/openai": "^1.1.3",
     "@langchain/tavily": "^1.2.0",
+    "@skroyc/langgraph-supabase-checkpointer": "^2.2.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.89.0",
     "@tailwindcss/typography": "^0.5.19",

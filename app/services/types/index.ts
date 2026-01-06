@@ -10,10 +10,14 @@ export interface ChatMessageInput {
   thread_id?: string
   selectedTools?: string[]
   modelConfig?: ModelConfig
+  userId?: string // 用户 ID,用于创建会话
+  authenticatedClient?: any // 带认证的 Supabase 客户端
 }
 
 export interface ChatHistoryQuery {
   thread_id: string
+  userId?: string;
+  authenticatedClient?: any;
 }
 
 export interface ChatHistoryResult {

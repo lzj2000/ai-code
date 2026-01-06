@@ -2,7 +2,7 @@ import type { ChatHistoryQuery, ChatHistoryResult, ChatMessageInput } from './ty
 import { randomUUID } from 'node:crypto'
 import { HumanMessage, mapStoredMessageToChatMessage } from '@langchain/core/messages'
 import { getApp } from '@/app/agent/chatbot'
-import { createSession } from '@/app/agent/db'
+import { createSession } from '@/app/database'
 
 /**
  * ChatService
@@ -84,7 +84,14 @@ export class ChatService {
     // 如果是新会话，在数据库中创建会话记录
     if (isNewSession) {
       const sessionName = this.extractSessionName(input.message)
-      createSession(threadId, sessionName)
+
+      // 检查是否有 userId 和 authenticatedClient
+      if (input.userId && input.authenticatedClient) {
+        createSession(threadId, sessionName, input.userId, input.authenticatedClient)
+      }
+      else {
+        console.warn('创建会话时缺少 userId 或 authenticatedClient，会话可能无法正确创建')
+      }
     }
 
     return { threadId, isNewSession }
@@ -93,16 +100,23 @@ export class ChatService {
   /**
    * 创建流式聊天响应
    */
-  async* streamChat(input: ChatMessageInput): AsyncGenerator<any, void, unknown> {
-    const { threadId } = this.getOrCreateThreadId(input)
+  async* streamChat(input: ChatMessageInput, threadId: string, isNewSession: boolean): AsyncGenerator<any, void, unknown> {
     // 解析用户消息
     const userMessage = this.parseUserMessage(input.message)
 
     // 配置线程
     const threadConfig = { configurable: { thread_id: threadId } }
 
+    // 如果是新创建的会话，立即发送 sessionId
+    if (isNewSession) {
+      yield {
+        type: 'session',
+        thread_id: threadId,
+      }
+    }
+
     // 获取应用实例，传入模型和工具配置
-    const app = await getApp(input.modelConfig, input.selectedTools)
+    const app = await getApp(input.modelConfig, input.selectedTools, input.authenticatedClient, input.userId)
 
     let completeMessage = null
 
@@ -180,10 +194,10 @@ export class ChatService {
    * 获取聊天历史
    */
   async getChatHistory(query: ChatHistoryQuery): Promise<ChatHistoryResult> {
-    const { thread_id } = query
+    const { thread_id, authenticatedClient, userId } = query
 
     // 获取应用实例
-    const app = await getApp()
+    const app = await getApp(undefined, undefined, authenticatedClient, userId)
 
     // 通过 graph.getState 获取历史
     const state = await app.getState({

@@ -29,6 +29,9 @@ importers:
       '@langchain/tavily':
         specifier: ^1.2.0
         version: 1.2.0(@langchain/core@1.1.5(openai@6.10.0(ws@8.18.3)(zod@3.25.76)))
+      '@skroyc/langgraph-supabase-checkpointer':
+        specifier: ^2.2.0
+        version: 2.2.0(@langchain/core@1.1.5(openai@6.10.0(ws@8.18.3)(zod@3.25.76)))(@langchain/langgraph-checkpoint@1.0.0(@langchain/core@1.1.5(openai@6.10.0(ws@8.18.3)(zod@3.25.76))))(@supabase/supabase-js@2.89.0)
       '@supabase/ssr':
         specifier: ^0.8.0
         version: 0.8.0(@supabase/supabase-js@2.89.0)
@@ -711,6 +714,14 @@ packages:
   '@sindresorhus/base62@1.0.0':
     resolution: {integrity: sha512-TeheYy0ILzBEI/CO55CP6zJCSdSWeRtGnHy8U8dWSUH4I68iqTsy7HkMktR4xakThc9jotkPQUXT4ITdbV7cHA==, tarball: https://registry.npmmirror.com/@sindresorhus/base62/-/base62-1.0.0.tgz}
     engines: {node: '>=18'}
+
+  '@skroyc/langgraph-supabase-checkpointer@2.2.0':
+    resolution: {integrity: sha512-ZJOK8+538E3z36z+axHw67mH/AVQVF43ftK20mUUw0obxV3nKJB1cNxE7+rifRxCzyuZvnoseWSLSeUovkPIew==, tarball: https://registry.npmmirror.com/@skroyc/langgraph-supabase-checkpointer/-/langgraph-supabase-checkpointer-2.2.0.tgz}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@langchain/core': ^0.3.59 || ^1.0.0
+      '@langchain/langgraph-checkpoint': ^0.1.0 || ^1.0.0
+      '@supabase/supabase-js': ^2.0.0
 
   '@stylistic/eslint-plugin@5.6.1':
     resolution: {integrity: sha512-JCs+MqoXfXrRPGbGmho/zGS/jMcn3ieKl/A8YImqib76C8kjgZwq5uUFzc30lJkMvcchuRn6/v8IApLxli3Jyw==, tarball: https://registry.npmmirror.com/@stylistic/eslint-plugin/-/eslint-plugin-5.6.1.tgz}
@@ -4141,6 +4152,12 @@ snapshots:
   '@rtsao/scc@1.1.0': {}
 
   '@sindresorhus/base62@1.0.0': {}
+
+  '@skroyc/langgraph-supabase-checkpointer@2.2.0(@langchain/core@1.1.5(openai@6.10.0(ws@8.18.3)(zod@3.25.76)))(@langchain/langgraph-checkpoint@1.0.0(@langchain/core@1.1.5(openai@6.10.0(ws@8.18.3)(zod@3.25.76))))(@supabase/supabase-js@2.89.0)':
+    dependencies:
+      '@langchain/core': 1.1.5(openai@6.10.0(ws@8.18.3)(zod@3.25.76))
+      '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.5(openai@6.10.0(ws@8.18.3)(zod@3.25.76)))
+      '@supabase/supabase-js': 2.89.0
 
   '@stylistic/eslint-plugin@5.6.1(eslint@9.39.2(jiti@2.6.1))':
     dependencies:

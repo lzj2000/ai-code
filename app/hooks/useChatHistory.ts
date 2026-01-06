@@ -50,9 +50,7 @@ export function useChatHistory(
 
           historyMsgs = mapStoredMessagesToChatMessages(serializedData) as Message[]
         }
-        catch (deserializeError) {
-          console.error('反序列化失败，尝试手动重建:', deserializeError)
-
+        catch {
           // 手动重建消息对象作为备选方案
           historyMsgs = data.history.map((msg: any, idx: number) => {
             // 多种方式提取消息类型
