@@ -92,6 +92,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('thread_id')
+      }
       setUser(null)
     }
     catch {
