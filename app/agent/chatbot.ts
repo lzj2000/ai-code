@@ -9,7 +9,7 @@ import {
 } from '@langchain/langgraph'
 import { ToolNode } from '@langchain/langgraph/prebuilt'
 import { SupabaseSaver } from '@skroyc/langgraph-supabase-checkpointer'
-import { supabase } from '../database/supabase'
+import { supabase } from '@/app/database'
 import { createModel } from './utils/modelFactory'
 import { createLangChainTools } from './utils/tools'
 import '../utils/loadEnv'

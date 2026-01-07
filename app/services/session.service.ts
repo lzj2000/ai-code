@@ -54,23 +54,25 @@ export class SessionService {
   /**
    * 删除会话
    * 注意：由于 RLS 策略，用户只能删除自己的会话
+   * @param client Supabase 客户端（可选，用于 RLS 策略）
    */
-  async deleteSession(input: DeleteSessionInput): Promise<void> {
+  async deleteSession(input: DeleteSessionInput, client?: SupabaseClient): Promise<void> {
     if (!input.id) {
       throw new Error('缺少 id')
     }
-    await dbDeleteSession(input.id)
+    await dbDeleteSession(input.id, client)
   }
 
   /**
    * 更新会话名称
    * 注意：由于 RLS 策略，用户只能更新自己的会话
+   * @param client Supabase 客户端（可选，用于 RLS 策略）
    */
-  async updateSessionName(input: UpdateSessionInput): Promise<void> {
+  async updateSessionName(input: UpdateSessionInput, client?: SupabaseClient): Promise<void> {
     if (!input.id || !input.name) {
       throw new Error('缺少参数')
     }
-    await dbUpdateSessionName(input.id, input.name)
+    await dbUpdateSessionName(input.id, input.name, client)
   }
 }
 

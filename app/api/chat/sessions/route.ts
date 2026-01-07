@@ -47,13 +47,13 @@ export const POST = withAuth(async (request: NextRequest, auth) => {
  * DELETE /api/chat/sessions
  * 删除会话
  */
-export const DELETE = withAuth(async (request: NextRequest) => {
+export const DELETE = withAuth(async (request: NextRequest, auth) => {
   try {
     const { id } = await request.json()
     if (!id) {
       return NextResponse.json({ error: '缺少 id' }, { status: 400 })
     }
-    await sessionService.deleteSession({ id })
+    await sessionService.deleteSession({ id }, auth.client)
     return NextResponse.json({ success: true })
   }
   catch (e) {
@@ -68,13 +68,13 @@ export const DELETE = withAuth(async (request: NextRequest) => {
  * PATCH /api/chat/sessions
  * 重命名会话
  */
-export const PATCH = withAuth(async (request: NextRequest) => {
+export const PATCH = withAuth(async (request: NextRequest, auth) => {
   try {
     const { id, name } = await request.json()
     if (!id || !name) {
       return NextResponse.json({ error: '缺少参数' }, { status: 400 })
     }
-    await sessionService.updateSessionName({ id, name })
+    await sessionService.updateSessionName({ id, name }, auth.client)
     return NextResponse.json({ success: true })
   }
   catch (e) {

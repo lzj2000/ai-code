@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
-import { authService } from '@/app/services'
-import {
-  buildAuthResponse,
-  buildErrorResponse,
-  setAuthCookiesFromSession,
-} from '../_utils'
+import { createSSRClient } from '@/app/database/supabase-server'
+import { buildAuthResponse, buildErrorResponse } from '../_utils'
 
 /**
  * 登录接口
@@ -19,17 +15,27 @@ export async function POST(request: Request) {
       return NextResponse.json(buildErrorResponse('缺少或无效的参数'), { status: 400 })
     }
 
-    const result = await authService.loginWithPassword({ email, password })
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400 })
+    const supabase = await createSSRClient()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }
 
-    const response = NextResponse.json(buildAuthResponse(result))
-    const session = (result as any)?.data?.session
-    // 将 token 写入 HttpOnly Cookie，前端无需（也不应）自行保存敏感 token
-    setAuthCookiesFromSession(response, session)
+    // 成功登录后，SSR client 会自动设置 Cookie，无需手动处理
+    // 构造返回数据
+    const result = {
+      success: true,
+      data: {
+        user: data.user,
+        session: data.session,
+      },
+    }
 
-    return response
+    return NextResponse.json(buildAuthResponse(result))
   }
   catch {
     return NextResponse.json(

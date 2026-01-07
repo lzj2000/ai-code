@@ -1,20 +1,15 @@
 import { NextResponse } from 'next/server'
-import { authService } from '@/app/services'
+import { createSSRClient } from '@/app/database/supabase-server'
 import {
   buildAuthResponse,
   buildErrorResponse,
   getSiteUrl,
-  setAuthCookiesFromSession,
 } from '../_utils'
 
 /**
  * 注册接口
  * POST /api/auth/register
  * body: { email: string, password: string, name: string, redirectTo?: string }
- *
- * 说明：
- * - redirectTo 是 Supabase 邮件验证完成后回跳地址
- * - 默认使用当前域名下的 /api/auth/callback
  */
 export async function POST(request: Request) {
   try {
@@ -36,30 +31,38 @@ export async function POST(request: Request) {
       redirectTarget = redirectTo
     }
     else {
-      // 使用 URL 对象构建地址，自动处理斜杠和特殊字符
+      // 使用 URL 对象构建地址
       const siteUrl = getSiteUrl()
-      // 修改为指向客户端回调页面 /auth/callback
+      // 指向服务端回调路由 /auth/callback
       redirectTarget = new URL('/auth/callback', siteUrl).toString()
     }
 
-    const result = await authService.signUpWithEmail({
+    const supabase = await createSSRClient()
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      name,
-      redirectTo: redirectTarget,
+      options: {
+        emailRedirectTo: redirectTarget,
+        data: {
+          name,
+        },
+      },
     })
 
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400 })
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }
 
-    const response = NextResponse.json(buildAuthResponse(result))
+    // SSR Client 自动处理 Session Cookie（如果有 Session 返回）
+    const result = {
+      success: true,
+      data: {
+        user: data.user,
+        session: data.session,
+      },
+    }
 
-    const session = (result as any)?.data?.session
-    // 如果 Supabase 配置允许注册后直接返回 session，则顺便持久化 token
-    setAuthCookiesFromSession(response, session)
-
-    return response
+    return NextResponse.json(buildAuthResponse(result))
   }
   catch {
     return NextResponse.json(

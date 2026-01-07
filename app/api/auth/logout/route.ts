@@ -1,54 +1,30 @@
 import { NextResponse } from 'next/server'
-import { authService } from '@/app/services'
-import {
-  ACCESS_TOKEN_COOKIE,
-  buildErrorResponse,
-  clearAuthCookies,
-  getBearerTokenFromHeader,
-  getCookieValueFromHeader,
-} from '../_utils'
+import { createSSRClient } from '@/app/database/supabase-server'
+import { buildErrorResponse } from '../_utils'
 
 /**
  * 登出接口
  * POST /api/auth/logout
- *
- * 支持两种传参方式：
- * - Header: Authorization: Bearer <access_token>
- * - body: { access_token: string }
  */
-export async function POST(request: Request) {
+export async function POST() {
   try {
-    const bearerToken = getBearerTokenFromHeader(request)
-    let accessToken = bearerToken
+    const supabase = await createSSRClient()
 
-    if (!accessToken) {
-      const body = await request.json().catch(() => ({} as any))
-      accessToken = typeof body?.access_token === 'string' ? body.access_token : null
+    // signOut 会自动清理服务端的 Session 和 Cookie
+    const { error } = await supabase.auth.signOut()
+
+    if (error) {
+      // 即使出错，也应该返回成功让前端继续处理（通常意味着 Token 已经无效）
+      console.error('Supabase signOut error:', error)
     }
 
-    if (!accessToken) {
-      // 兼容：如果前端不主动传 token，则从 HttpOnly Cookie 读取
-      accessToken = getCookieValueFromHeader(request, ACCESS_TOKEN_COOKIE)
-    }
-
-    // 无论服务端 signOut 是否成功，都应该清理本地持久化 token
-    if (!accessToken) {
-      const response = NextResponse.json({ success: true })
-      clearAuthCookies(response)
-      return response
-    }
-
-    const result = await authService.logoutWithToken({ accessToken })
-    const response = NextResponse.json(result, { status: result.success ? 200 : 400 })
-    clearAuthCookies(response)
-    return response
+    // 返回成功响应
+    return NextResponse.json({ success: true }, { status: 200 })
   }
   catch {
-    const response = NextResponse.json(
+    return NextResponse.json(
       buildErrorResponse('登出失败'),
       { status: 500 },
     )
-    clearAuthCookies(response)
-    return response
   }
 }

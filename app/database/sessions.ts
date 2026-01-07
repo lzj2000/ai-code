@@ -13,14 +13,6 @@ export interface SessionRow {
 
 /**
  * 初始化 sessions 表
- * 注意：Supabase 中需要手动创建表，此函数仅用于文档说明
- *
- * SQL 创建语句：
- * CREATE TABLE sessions (
- *   id TEXT PRIMARY KEY,
- *   name TEXT NOT NULL,
- *   created_at TIMESTAMP DEFAULT NOW()
- * );
  */
 export function initSessionTable() {
   // Supabase 不需要运行时初始化表，表应该在 Supabase 控制台中预先创建
@@ -73,9 +65,13 @@ export async function getAllSessions(client?: SupabaseClient): Promise<SessionRo
 
 /**
  * 更新会话名称
+ * @param id 会话ID
+ * @param name 新名称
+ * @param client Supabase 客户端（可选）
  */
-export async function updateSessionName(id: string, name: string): Promise<void> {
-  const { error } = await supabase
+export async function updateSessionName(id: string, name: string, client?: SupabaseClient): Promise<void> {
+  const db = client || supabase
+  const { error } = await db
     .from('sessions')
     .update({ name })
     .eq('id', id)
@@ -87,9 +83,12 @@ export async function updateSessionName(id: string, name: string): Promise<void>
 
 /**
  * 删除会话
+ * @param id 会话ID
+ * @param client Supabase 客户端（可选）
  */
-export async function deleteSession(id: string): Promise<void> {
-  const { error } = await supabase
+export async function deleteSession(id: string, client?: SupabaseClient): Promise<void> {
+  const db = client || supabase
+  const { error } = await db
     .from('sessions')
     .delete()
     .eq('id', id)

@@ -1,14 +1,6 @@
 import type { NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-
-// 初始化 Supabase 客户端（用于服务端鉴权）
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-// Cookie 名称
-const COOKIE_NAME = 'sb-access-token'
+import { createSSRClient } from '@/app/database/supabase-server'
 
 /**
  * 认证用户信息接口
@@ -31,64 +23,35 @@ export interface AuthResult {
 
 /**
  * 从请求中提取和验证 token
- * 优先从 cookie 读取，如果没有则从 Authorization header 读取
- * 返回用户信息、token 和认证后的客户端
+ * 使用 SSR 客户端自动处理 Cookie
  *
  * @param request - Next.js 请求对象
  * @returns 认证结果
  */
-export async function authenticateRequest(request: NextRequest): Promise<AuthResult> {
+export async function authenticateRequest(): Promise<AuthResult> {
   try {
-    // 1. 优先从 cookie 获取 token
-    let token = request.cookies.get(COOKIE_NAME)?.value
+    const supabase = await createSSRClient()
 
-    // 2. 如果 cookie 中没有，尝试从 Authorization header 获取（兼容旧客户端）
-    if (!token) {
-      const authHeader = request.headers.get('authorization')
-      if (authHeader?.startsWith('Bearer ')) {
-        token = authHeader.substring(7)
-      }
-    }
+    // getUser 会自动从 Cookie 读取 token 并验证
+    const { data: { user }, error } = await supabase.auth.getUser()
 
-    if (!token) {
+    if (error || !user) {
       return {
         user: null,
-        token: null,
-        client: null,
-        error: '缺少认证 token',
-      }
-    }
-
-    // 3. 验证 token 并获取用户信息
-    const { data, error } = await supabase.auth.getUser(token)
-
-    if (error || !data.user) {
-      return {
-        user: null,
-        token: null,
+        token: null, // SSR 模式下不直接暴露 token
         client: null,
         error: 'Token 无效或已过期',
       }
     }
 
-    // 4. 创建带有认证的 Supabase 客户端（用于 RLS 策略）
-    const authenticatedClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    })
-
-    // 5. 返回认证结果
     return {
       user: {
-        id: data.user.id,
-        email: data.user.email || '',
-        ...data.user.user_metadata,
+        id: user.id,
+        email: user.email || '',
+        ...user.user_metadata,
       },
-      token,
-      client: authenticatedClient,
+      token: null, // 在 SSR 模式下，通常不需要手动处理 token
+      client: supabase,
     }
   }
   catch (error) {
@@ -114,15 +77,11 @@ export function unauthorizedResponse(message: string = '未授权') {
 
 /**
  * Next.js 中间件 - 保护需要认证的路由
- *
- * 使用示例:
- * export { middleware as GET } from '@/app/middleware/auth';
- * export { middleware as POST } from '@/app/middleware/auth';
  */
 export function createAuthMiddleware(handler: (request: NextRequest, auth: AuthResult) => Promise<Response>) {
   return async (request: NextRequest): Promise<Response> => {
     // 执行认证
-    const auth = await authenticateRequest(request)
+    const auth = await authenticateRequest()
 
     // 如果认证失败,返回 401
     if (!auth.user) {
