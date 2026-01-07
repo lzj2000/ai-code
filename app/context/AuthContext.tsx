@@ -73,7 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name, redirectTo: `${window.location.origin}/api/auth/callback` }),
+        // 移除 redirectTo 参数，让服务端使用默认的客户端回调地址 /auth/callback
+        body: JSON.stringify({ email, password, name }),
       })
       const data = await res.json()
       if (data.success) {

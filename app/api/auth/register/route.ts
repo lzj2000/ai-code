@@ -3,6 +3,7 @@ import { authService } from '@/app/services'
 import {
   buildAuthResponse,
   buildErrorResponse,
+  getSiteUrl,
   setAuthCookiesFromSession,
 } from '../_utils'
 
@@ -30,10 +31,17 @@ export async function POST(request: Request) {
       return NextResponse.json(buildErrorResponse('缺少或无效的参数'), { status: 400 })
     }
 
-    const redirectTarget
-      = typeof redirectTo === 'string' && redirectTo
-        ? redirectTo
-        : `${location.origin}/api/auth/callback?`
+    let redirectTarget = ''
+    if (typeof redirectTo === 'string' && redirectTo) {
+      redirectTarget = redirectTo
+    }
+    else {
+      // 使用 URL 对象构建地址，自动处理斜杠和特殊字符
+      const siteUrl = getSiteUrl()
+      // 修改为指向客户端回调页面 /auth/callback
+      redirectTarget = new URL('/auth/callback', siteUrl).toString()
+    }
+
     const result = await authService.signUpWithEmail({
       email,
       password,

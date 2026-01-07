@@ -94,3 +94,12 @@ export function buildAuthResponse(result: any) {
 export function buildErrorResponse(error: string) {
   return { success: false, error }
 }
+
+/**
+ * 获取站点 URL
+ * 优先使用环境变量，兜底为 localhost
+ */
+export function getSiteUrl(): string {
+  const url = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  return url.replace(/\/$/, '') // 移除末尾的斜杠
+}

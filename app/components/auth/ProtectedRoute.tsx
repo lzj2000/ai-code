@@ -7,10 +7,6 @@ import AuthForm from './AuthForm'
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
 
-  // 全局清理 URL 参数逻辑：即使用户已登录，也要清理 URL 中的错误信息或 token
-  useEffect(() => {
-
-  }, [])
 
   if (loading) {
     return (
