@@ -1,10 +1,15 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { chatService } from '@/app/services'
+import { withAuth } from '@/app/middleware/auth'
 
+import { chatService } from '@/app/services'
 import '../../utils/loadEnv'
 
-export async function POST(request: NextRequest) {
+/**
+ * POST /api/chat
+ * 发送聊天消息（流式响应）
+ */
+export const POST = withAuth(async (request: NextRequest, auth): Promise<Response> => {
   try {
     const { message, thread_id, modelConfig, selectedTools } = await request.json()
 
@@ -12,16 +17,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '无效的消息格式' }, { status: 400 })
     }
 
-    if (
-      typeof message !== 'string'
-      && !Array.isArray(message)
-      && !(typeof message === 'object' && message !== null)
-    ) {
-      return NextResponse.json({ error: '无效的消息格式' }, { status: 400 })
-    }
-    if (thread_id && typeof thread_id !== 'string') {
-      return NextResponse.json({ error: '无效的 thread_id' }, { status: 400 })
-    }
+    // 获取或创建线程 ID
+    const { threadId, isNewSession } = await chatService.getOrCreateThreadId({
+      message,
+      thread_id,
+      modelConfig,
+      selectedTools,
+      userId: auth.user!.id,
+      authenticatedClient: auth.client,
+    })
 
     // 创建流式响应
     const stream = new ReadableStream({
@@ -32,13 +36,16 @@ export async function POST(request: NextRequest) {
             thread_id,
             modelConfig,
             selectedTools,
-          })) {
+            userId: auth.user!.id,
+            authenticatedClient: auth.client,
+          }, threadId, isNewSession)) {
             const data = `${JSON.stringify(payload)}\n`
             controller.enqueue(new TextEncoder().encode(data))
           }
           controller.close()
         }
         catch (error) {
+          console.error('聊天流错误:', error)
           const errorData
             = `${JSON.stringify({
               type: 'error',
@@ -71,15 +78,25 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     )
   }
-}
-
-export async function GET(request: NextRequest) {
+},
+)
+/**
+ * GET /api/chat
+ * 获取聊天历史或 API 信息
+ */
+export const GET = withAuth(async (request: NextRequest, auth) => {
   // 判断是否为历史记录请求
   const { searchParams } = new URL(request.url)
   const thread_id = searchParams.get('thread_id')
+
   if (thread_id) {
     try {
-      const result = await chatService.getChatHistory({ thread_id })
+      // 使用 service 层获取历史记录
+      const result = await chatService.getChatHistory({
+        thread_id,
+        userId: auth.user!.id,
+        authenticatedClient: auth.client,
+      })
       return NextResponse.json(result)
     }
     catch (e) {
@@ -89,6 +106,7 @@ export async function GET(request: NextRequest) {
       )
     }
   }
+
   // 默认返回API信息
   return NextResponse.json({
     message: 'LangGraph 聊天 API 正在运行',
@@ -98,4 +116,4 @@ export async function GET(request: NextRequest) {
       history: 'GET /api/chat?thread_id=xxx (获取历史记录)',
     },
   })
-}
+})

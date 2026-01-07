@@ -1,6 +1,5 @@
 'use client'
 
-import type { ModelOption } from '../agent/utils/models'
 import { Check, ChevronDown, ChevronUp, Cpu, Sparkles, Zap } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { AVAILABLE_MODELS } from '../agent/utils/models'

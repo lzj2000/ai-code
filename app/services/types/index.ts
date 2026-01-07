@@ -10,10 +10,14 @@ export interface ChatMessageInput {
   thread_id?: string
   selectedTools?: string[]
   modelConfig?: ModelConfig
+  userId?: string // 用户 ID,用于创建会话
+  authenticatedClient?: any // 带认证的 Supabase 客户端
 }
 
 export interface ChatHistoryQuery {
   thread_id: string
+  userId?: string
+  authenticatedClient?: any
 }
 
 export interface ChatHistoryResult {
@@ -50,4 +54,25 @@ export interface ServiceResult<T = any> {
   data?: T
   error?: string
   message?: string
+}
+
+// Auth 相关类型
+export interface LoginWithPasswordInput {
+  email: string
+  password: string
+}
+
+export interface SignUpWithEmailInput {
+  email: string
+  password: string
+  name: string
+  redirectTo: string
+}
+
+export interface LogoutWithTokenInput {
+  accessToken: string
+}
+
+export interface ExchangeCodeForSessionInput {
+  code: string
 }

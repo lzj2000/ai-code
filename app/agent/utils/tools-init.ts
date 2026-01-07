@@ -3,9 +3,9 @@
  * 在应用启动时自动预加载 LangChain 工具
  */
 
-import { preloadLangChainTools } from './tools';
+import { preloadLangChainTools } from './tools'
 
-let isInitialized = false;
+let isInitialized = false
 
 /**
  * 初始化工具预加载
@@ -13,20 +13,20 @@ let isInitialized = false;
  */
 export async function initializeTools() {
   if (isInitialized) {
-    return;
+    return
   }
 
-  isInitialized = true;
-  await preloadLangChainTools();
+  isInitialized = true
+  await preloadLangChainTools()
 }
 
 // 自动初始化（但不在导入时立即执行，而是延迟到首次使用）
 // 这样可以避免影响应用启动速度
-let initPromise: Promise<void> | null = null;
+let initPromise: Promise<void> | null = null
 
 export function ensureToolsInitialized(): Promise<void> {
   if (!initPromise) {
-    initPromise = initializeTools();
+    initPromise = initializeTools()
   }
-  return initPromise;
+  return initPromise
 }

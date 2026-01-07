@@ -1,4 +1,5 @@
 import type { AIMessage } from '@langchain/core/messages'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ModelConfig } from './utils/modelFactory.js'
 import {
   END,
@@ -6,17 +7,17 @@ import {
   START,
   StateGraph,
 } from '@langchain/langgraph'
-import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite'
 import { ToolNode } from '@langchain/langgraph/prebuilt'
-import db, { initSessionTable } from './db'
+import { SupabaseSaver } from '@skroyc/langgraph-supabase-checkpointer'
+import { supabase } from '@/app/database'
 import { createModel } from './utils/modelFactory'
 import { createLangChainTools } from './utils/tools'
 import '../utils/loadEnv'
 
-export { db }
-
-// 全局缓存：存储不同配置的 workflow
-const workflowCache = new Map()
+// 全局缓存：存储 workflow 与匿名编译后的 app
+// 使用 any 避免 CompiledStateGraph 复杂类型推断问题
+const workflowCache = new Map<string, any>()
+const appCache = new Map<string, any>()
 
 /**
  * 创建聊天机器人 workflow
@@ -86,18 +87,20 @@ async function createWorkflow(config?: ModelConfig, toolIds?: string[]) {
 }
 
 // 异步初始化检查点保存器和应用
-let checkpointer: SqliteSaver
+let checkpointer: SupabaseSaver
 
-export function getCheckpointer() {
+function getCheckpointer(client?: SupabaseClient, userId?: string) {
+  if (client) {
+    return new SupabaseSaver(client, undefined, userId)
+  }
+
   if (!checkpointer) {
-    // 创建 SQLite 检查点保存器
+    // 创建 Supabase 检查点保存器
     try {
-      // 初始化自定义 sessions 表
-      initSessionTable()
-      checkpointer = new SqliteSaver(db)
+      checkpointer = new SupabaseSaver(supabase)
     }
     catch (error) {
-      console.error('SqliteSaver 初始化失败:', error)
+      console.error('SupabaseSaver 初始化失败:', error)
       throw error
     }
   }
@@ -105,31 +108,40 @@ export function getCheckpointer() {
 }
 
 // 获取应用实例的函数
-async function getApp(config?: ModelConfig, toolIds?: string[]) {
-  // 初始化 checkpointer
-  if (!checkpointer) {
-    getCheckpointer()
-  }
+async function getApp(config?: ModelConfig, toolIds?: string[], client?: SupabaseClient, userId?: string) {
+  const checkpointerInstance = getCheckpointer(client, userId)
 
   // 生成缓存 key
   const cacheKey = `${config?.modelName || 'default'}-${(toolIds || []).sort().join(',')}`
 
   // 检查缓存
-  if (workflowCache.has(cacheKey)) {
-    return workflowCache.get(cacheKey)!
+  let workflow = workflowCache.get(cacheKey)
+
+  if (!workflow) {
+    // 创建新的 workflow
+    workflow = await createWorkflow(config, toolIds)
+
+    // FIFO 缓存清理：如果缓存超过 10 个，删除最早添加的 workflow
+    if (workflowCache.size > 10) {
+      const firstKey = workflowCache.keys().next().value // Map 按插入顺序迭代
+      if (firstKey) {
+        workflowCache.delete(firstKey)
+        appCache.delete(firstKey)
+      }
+    }
+
+    workflowCache.set(cacheKey, workflow)
   }
 
-  // 创建新的 workflow
-  const workflow = await createWorkflow(config, toolIds)
-  const app = workflow.compile({ checkpointer })
-
-  // 缓存 workflow（限制缓存大小）
-  if (workflowCache.size > 10) {
-    const firstKey = workflowCache.keys().next().value
-    firstKey && workflowCache.delete(firstKey)
+  if (!client && appCache.has(cacheKey)) {
+    return appCache.get(cacheKey)!
   }
 
-  workflowCache.set(cacheKey, app)
+  const app = workflow.compile({ checkpointer: checkpointerInstance })
+
+  if (!client) {
+    appCache.set(cacheKey, app)
+  }
 
   return app
 }

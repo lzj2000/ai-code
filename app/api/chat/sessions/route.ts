@@ -1,9 +1,16 @@
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { withAuth } from '@/app/middleware/auth'
 import { sessionService } from '@/app/services'
 
-export async function GET() {
+/**
+ * GET /api/chat/sessions
+ * 获取当前用户的所有会话列表
+ */
+export const GET = withAuth(async (request: NextRequest, auth) => {
   try {
-    const sessions = sessionService.getAllSessions()
+    // 使用认证客户端获取会话列表
+    const sessions = await sessionService.getAllSessions(auth.client)
     return NextResponse.json({ sessions })
   }
   catch (e) {
@@ -12,13 +19,21 @@ export async function GET() {
       { status: 500 },
     )
   }
-}
+})
 
-export async function POST(request: Request) {
+/**
+ * POST /api/chat/sessions
+ * 创建新会话
+ */
+export const POST = withAuth(async (request: NextRequest, auth) => {
   try {
     const { name } = await request.json()
-    const { id } = sessionService.createSession({ name })
-    return NextResponse.json({ id })
+    const result = await sessionService.createSession(
+      { name },
+      auth.user!.id,
+      auth.client,
+    )
+    return NextResponse.json(result)
   }
   catch (e) {
     return NextResponse.json(
@@ -26,14 +41,19 @@ export async function POST(request: Request) {
       { status: 500 },
     )
   }
-}
+})
 
-export async function DELETE(request: Request) {
+/**
+ * DELETE /api/chat/sessions
+ * 删除会话
+ */
+export const DELETE = withAuth(async (request: NextRequest, auth) => {
   try {
     const { id } = await request.json()
-    if (!id)
+    if (!id) {
       return NextResponse.json({ error: '缺少 id' }, { status: 400 })
-    sessionService.deleteSession({ id })
+    }
+    await sessionService.deleteSession({ id }, auth.client)
     return NextResponse.json({ success: true })
   }
   catch (e) {
@@ -42,14 +62,19 @@ export async function DELETE(request: Request) {
       { status: 500 },
     )
   }
-}
+})
 
-export async function PATCH(request: Request) {
+/**
+ * PATCH /api/chat/sessions
+ * 重命名会话
+ */
+export const PATCH = withAuth(async (request: NextRequest, auth) => {
   try {
     const { id, name } = await request.json()
-    if (!id || !name)
+    if (!id || !name) {
       return NextResponse.json({ error: '缺少参数' }, { status: 400 })
-    sessionService.updateSessionName({ id, name })
+    }
+    await sessionService.updateSessionName({ id, name }, auth.client)
     return NextResponse.json({ success: true })
   }
   catch (e) {
@@ -58,4 +83,4 @@ export async function PATCH(request: Request) {
       { status: 500 },
     )
   }
-}
+})
