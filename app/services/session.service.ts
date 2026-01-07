@@ -54,6 +54,7 @@ export class SessionService {
   /**
    * 删除会话
    * 注意：由于 RLS 策略，用户只能删除自己的会话
+   * @param input 删除会话的输入参数
    * @param client Supabase 客户端（可选，用于 RLS 策略）
    */
   async deleteSession(input: DeleteSessionInput, client?: SupabaseClient): Promise<void> {
@@ -66,6 +67,7 @@ export class SessionService {
   /**
    * 更新会话名称
    * 注意：由于 RLS 策略，用户只能更新自己的会话
+   * @param input 更新会话的输入参数
    * @param client Supabase 客户端（可选，用于 RLS 策略）
    */
   async updateSessionName(input: UpdateSessionInput, client?: SupabaseClient): Promise<void> {

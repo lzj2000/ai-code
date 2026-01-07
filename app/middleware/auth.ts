@@ -25,7 +25,6 @@ export interface AuthResult {
  * 从请求中提取和验证 token
  * 使用 SSR 客户端自动处理 Cookie
  *
- * @param request - Next.js 请求对象
  * @returns 认证结果
  */
 export async function authenticateRequest(): Promise<AuthResult> {

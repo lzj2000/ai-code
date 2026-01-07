@@ -1,12 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useAuth } from '@/app/context/AuthContext'
 import AuthForm from './AuthForm'
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
-
 
   if (loading) {
     return (
