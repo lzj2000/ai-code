@@ -18,7 +18,7 @@ export const POST = withAuth(async (request: NextRequest, auth): Promise<Respons
     }
 
     // 获取或创建线程 ID
-    const { threadId, isNewSession } = chatService.getOrCreateThreadId({
+    const { threadId, isNewSession } = await chatService.getOrCreateThreadId({
       message,
       thread_id,
       modelConfig,

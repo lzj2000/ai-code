@@ -74,7 +74,7 @@ export class ChatService {
   /**
    * 获取或创建会话 ID
    */
-  getOrCreateThreadId(input: ChatMessageInput): { threadId: string, isNewSession: boolean } {
+  async getOrCreateThreadId(input: ChatMessageInput): Promise<{ threadId: string, isNewSession: boolean }> {
     const threadId
       = typeof input.thread_id === 'string' && input.thread_id
         ? input.thread_id
@@ -85,13 +85,11 @@ export class ChatService {
     if (isNewSession) {
       const sessionName = this.extractSessionName(input.message)
 
-      // 检查是否有 userId 和 authenticatedClient
-      if (input.userId && input.authenticatedClient) {
-        createSession(threadId, sessionName, input.userId, input.authenticatedClient)
+      if (!input.userId || !input.authenticatedClient) {
+        throw new Error('创建会话时缺少 userId 或 authenticatedClient')
       }
-      else {
-        console.warn('创建会话时缺少 userId 或 authenticatedClient，会话可能无法正确创建')
-      }
+
+      await createSession(threadId, sessionName, input.userId, input.authenticatedClient)
     }
 
     return { threadId, isNewSession }
