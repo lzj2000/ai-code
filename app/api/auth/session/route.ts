@@ -13,11 +13,10 @@ export async function GET() {
     // 返回前端需要的用户字段
     return NextResponse.json({
       user: {
+        ...(user.user_metadata || {}),
         id: user.id,
-        email: user.email,
+        email: user.email || '',
         name: user.user_metadata?.name || '',
-        // 可以根据需要添加更多字段
-        ...user.user_metadata,
       },
     })
   }

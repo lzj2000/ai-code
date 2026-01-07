@@ -45,9 +45,9 @@ export async function authenticateRequest(): Promise<AuthResult> {
 
     return {
       user: {
+        ...(user.user_metadata || {}),
         id: user.id,
         email: user.email || '',
-        ...user.user_metadata,
       },
       token: null, // 在 SSR 模式下，通常不需要手动处理 token
       client: supabase,
