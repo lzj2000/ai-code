@@ -33,8 +33,8 @@ export async function POST(request: Request) {
     else {
       // 使用 URL 对象构建地址
       const siteUrl = getSiteUrl()
-      // 指向服务端回调路由 /auth/callback
-      redirectTarget = new URL('/auth/callback', siteUrl).toString()
+      // 指向服务端回调路由 /api/auth/callback
+      redirectTarget = new URL('/api/auth/callback', siteUrl).toString()
     }
 
     const supabase = await createSSRClient()
