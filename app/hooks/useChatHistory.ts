@@ -1,6 +1,8 @@
+import type { CanvasArtifact } from '../canvas/canvas-types'
 import type { Message } from '../page'
 import { AIMessage, HumanMessage, mapStoredMessagesToChatMessages } from '@langchain/core/messages'
 import { useCallback, useEffect } from 'react'
+import { getCanvasParser } from '../canvas/CanvasArtifactParser'
 
 /**
  * 聊天历史加载 Hook
@@ -111,8 +113,111 @@ export function useChatHistory(
           })
         }
 
+        const parser = getCanvasParser()
+        const enriched = historyMsgs.map((msg) => {
+          const msgType = msg.getType?.() || (msg as any)._getType?.()
+          if (msgType !== 'ai')
+            return msg
+
+          if (typeof msg.content !== 'string')
+            return msg
+
+          const contentLower = msg.content.toLowerCase()
+          if (!contentLower.includes('<canvasartifact'))
+            return msg
+
+          const rawId = (msg as any).id
+          const messageId = typeof rawId === 'string'
+            ? rawId
+            : Array.isArray(rawId)
+              ? rawId.map(String).join(':')
+              : String(rawId ?? '')
+
+          if (!messageId)
+            return msg
+
+          const artifactsById = new Map<string, CanvasArtifact>()
+          const now = new Date()
+
+          parser.resetState(messageId)
+          parser.setCallbacks({
+            onArtifactStart: (metadata) => {
+              const existing = artifactsById.get(metadata.id)
+              const base: CanvasArtifact = existing || {
+                id: metadata.id,
+                type: metadata.type,
+                title: metadata.title,
+                code: { language: 'jsx', content: '' },
+                status: 'creating',
+                isStreaming: true,
+                messageId,
+                sessionId: threadId,
+                currentVersion: 1,
+                createdAt: now,
+                updatedAt: now,
+              }
+              artifactsById.set(metadata.id, {
+                ...base,
+                type: metadata.type,
+                title: metadata.title,
+                updatedAt: now,
+              })
+            },
+            onCodeUpdate: (data) => {
+              const existing = artifactsById.get(data.artifactId)
+              if (!existing)
+                return
+              artifactsById.set(data.artifactId, {
+                ...existing,
+                code: { language: data.language, content: data.content },
+                status: 'streaming',
+                isStreaming: true,
+                updatedAt: now,
+              })
+            },
+            onArtifactComplete: (artifact) => {
+              const existing = artifactsById.get(artifact.id)
+              const base: CanvasArtifact = existing || {
+                id: artifact.id,
+                type: artifact.type,
+                title: artifact.title,
+                code: artifact.code,
+                config: artifact.config,
+                status: 'creating',
+                isStreaming: true,
+                messageId,
+                sessionId: threadId,
+                currentVersion: 1,
+                createdAt: now,
+                updatedAt: now,
+              }
+              artifactsById.set(artifact.id, {
+                ...base,
+                type: artifact.type,
+                title: artifact.title,
+                code: artifact.code,
+                config: artifact.config,
+                status: 'ready',
+                isStreaming: false,
+                currentVersion: base.currentVersion + 1,
+                updatedAt: now,
+              })
+            },
+          })
+          parser.parse(messageId, msg.content)
+          parser.resetState(messageId)
+
+          const artifacts = Array.from(artifactsById.values())
+          if (artifacts.length === 0) {
+            return msg
+          }
+
+          (msg as Message).artifacts = artifacts
+          return msg
+        })
+
         // 3. 更新消息列表
-        onLoadMessages(historyMsgs)
+        onLoadMessages(enriched)
 
         // 4. 检查是否有用户消息(用于判断是否需要更新会话名)
         const hasUserMsg = historyMsgs.some((msg) => {

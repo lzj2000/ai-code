@@ -9,7 +9,7 @@ interface UseSendMessageParams {
   setIsLoading: (loading: boolean) => void // 设置加载状态
   addUserMessage: (content: string | Array<any>) => Message // 添加用户消息（支持多模态）
   addAssistantMessage: () => Message // 添加 AI 消息
-  updateMessageContent: (id: string, content: string) => void // 更新消息内容
+  updateMessageContent: (id: string, content: string, sessionId: string) => void // 更新消息内容
   finishStreaming: (id: string) => void // 完成流式传输
   addErrorMessage: () => void // 添加错误消息
   updateSessionName: (name: string) => void // 更新会话名称
@@ -134,7 +134,7 @@ export function useSendMessage({
 
                 // 处理内容片段
                 if (data.type === 'chunk' && data.content) {
-                  updateMessageContent(assistantMessage.id!, data.content)
+                  updateMessageContent(assistantMessage.id!, data.content, sessionId)
                 } // 处理工具调用
                 else if (data.type === 'tool_calls' && data.tool_calls) {
                   updateToolCalls(assistantMessage.id!, data.tool_calls)
