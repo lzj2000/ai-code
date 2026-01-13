@@ -9,6 +9,13 @@
 
 // 导出 Sessions 相关操作和类型
 export {
+  type ArtifactRow,
+  createArtifact,
+  type CreateArtifactInput,
+  getArtifactById,
+} from './artifacts'
+
+export {
   createSession,
   deleteSession,
   getAllSessions,

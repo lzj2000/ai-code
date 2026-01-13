@@ -1,7 +1,7 @@
 'use client'
 
 import type { CanvasArtifact, CanvasStatus } from '../../canvas/canvas-types'
-import { Check, Copy, Download, Eye, Monitor, RectangleHorizontal, Smartphone, Tablet, Terminal, Trash2, X } from 'lucide-react'
+import { Check, Copy, Download, ExternalLink, Eye, Monitor, RectangleHorizontal, Smartphone, Tablet, Terminal, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildVirtualProjectFiles } from '../../canvas/virtual-project'
 import { CodePreviewPanel } from './CodePreviewPanel'
@@ -37,6 +37,7 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
   const [consoleOutput, setConsoleOutput] = useState<string[]>([])
   const [executionError, setExecutionError] = useState('')
   const [status, setStatus] = useState<CanvasStatus>(artifact.status)
+  const [persisting, setPersisting] = useState(false)
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [viewportMenuOpen, setViewportMenuOpen] = useState(false)
   const [showConsole, setShowConsole] = useState(false)
@@ -90,6 +91,14 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
     return '创建中'
   }, [artifact.isStreaming, status])
 
+  const canOpenNewPage = useMemo(() => {
+    if (persisting)
+      return false
+    if (artifact.isStreaming)
+      return false
+    return status === 'ready'
+  }, [artifact.isStreaming, persisting, status])
+
   const iconButtonClass = (isActive: boolean) => {
     const base = 'inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors'
     if (isActive)
@@ -122,6 +131,45 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
       document.body.removeChild(textarea)
     }
   }, [filteredConsoleOutput])
+
+  const handleOpenPersistentPage = useCallback(async () => {
+    if (persisting)
+      return
+
+    setPersisting(true)
+    try {
+      const res = await fetch('/api/artifacts/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: artifact.title,
+          type: artifact.type,
+          language: artifact.code.language,
+          code: artifact.code.content,
+          sourceArtifactId: artifact.id,
+        }),
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.error || `创建失败(${res.status})`)
+      }
+
+      const url = data?.url
+      if (typeof url !== 'string' || !url) {
+        throw new Error('返回的链接无效')
+      }
+
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
+    catch (e) {
+      setExecutionError(String((e as any)?.message || e))
+      setActiveTab('code')
+    }
+    finally {
+      setPersisting(false)
+    }
+  }, [artifact.code.content, artifact.code.language, artifact.id, artifact.title, artifact.type, persisting])
 
   useEffect(() => {
     if (!viewportMenuOpen)
@@ -255,6 +303,16 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
               </div>
             )}
           </div>
+          <button
+            type="button"
+            className={`${iconButtonClass(false)} ${canOpenNewPage ? '' : 'opacity-60 cursor-not-allowed'}`}
+            onClick={handleOpenPersistentPage}
+            disabled={!canOpenNewPage}
+            title={canOpenNewPage ? '打开新页' : '预览加载成功后可打开'}
+            aria-label="打开新页"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
           <button
             type="button"
             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-800 text-slate-300 hover:bg-slate-900 transition-colors"
