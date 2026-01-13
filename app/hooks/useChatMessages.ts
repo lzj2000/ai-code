@@ -1,6 +1,8 @@
+import type { CanvasArtifact } from '../canvas/canvas-types'
 import type { Message, ToolCall } from '../page'
 import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { useCallback, useState } from 'react'
+import { getCanvasParser } from '../canvas/CanvasArtifactParser'
 
 function normalizeToolName(name: string): string {
   return name
@@ -49,28 +51,156 @@ export function useChatMessages() {
   }, [])
 
   /**
+   * 使用 Canvas 解析器解析新增内容，生成或更新 Artifact
+   */
+  const parseArtifactsFromChunk = useCallback(
+    (messageId: string, sessionId: string, chunk: string) => {
+      const parser = getCanvasParser()
+
+      const upsertArtifact = (
+        artifactId: string,
+        updater: (current: CanvasArtifact | undefined) => CanvasArtifact,
+      ) => {
+        setMessages(prev => prev.map((msg) => {
+          if (msg.id !== messageId)
+            return msg
+
+          const existing = msg.artifacts || []
+          const idx = existing.findIndex(a => a.id === artifactId)
+          if (idx === -1) {
+            const nextArtifacts = [...existing, updater(undefined)]
+            return { ...msg, artifacts: nextArtifacts } as Message
+          }
+
+          const nextArtifacts = [...existing]
+          nextArtifacts[idx] = updater(existing[idx])
+          return { ...msg, artifacts: nextArtifacts } as Message
+        }))
+      }
+
+      parser.setCallbacks({
+        onArtifactStart: (metadata) => {
+          const now = new Date()
+          upsertArtifact(metadata.id, (current) => {
+            if (current) {
+              return {
+                ...current,
+                title: metadata.title,
+                type: metadata.type,
+                status: 'creating',
+                isStreaming: true,
+                updatedAt: now,
+              }
+            }
+
+            return {
+              id: metadata.id,
+              type: metadata.type,
+              title: metadata.title,
+              code: { language: 'jsx', content: '' },
+              status: 'creating',
+              isStreaming: true,
+              messageId,
+              sessionId,
+              currentVersion: 1,
+              createdAt: now,
+              updatedAt: now,
+            }
+          })
+        },
+        onCodeUpdate: (data) => {
+          const now = new Date()
+          upsertArtifact(data.artifactId, (current) => {
+            const base: CanvasArtifact = current || {
+              id: data.artifactId,
+              type: 'react',
+              title: data.artifactId,
+              code: { language: data.language, content: '' },
+              status: 'creating',
+              isStreaming: true,
+              messageId,
+              sessionId,
+              currentVersion: 1,
+              createdAt: now,
+              updatedAt: now,
+            }
+
+            return {
+              ...base,
+              code: { language: data.language, content: data.content },
+              status: 'streaming',
+              isStreaming: true,
+              updatedAt: now,
+            }
+          })
+        },
+        onArtifactComplete: (artifact) => {
+          const now = new Date()
+          upsertArtifact(artifact.id, (current) => {
+            const base: CanvasArtifact = current || {
+              id: artifact.id,
+              type: artifact.type,
+              title: artifact.title,
+              code: artifact.code,
+              config: artifact.config,
+              status: 'creating',
+              isStreaming: true,
+              messageId,
+              sessionId,
+              currentVersion: 1,
+              createdAt: now,
+              updatedAt: now,
+            }
+
+            return {
+              ...base,
+              type: artifact.type,
+              title: artifact.title,
+              code: artifact.code,
+              config: artifact.config,
+              status: 'ready',
+              isStreaming: false,
+              currentVersion: base.currentVersion + 1,
+              updatedAt: now,
+            }
+          })
+        },
+      })
+
+      parser.parse(messageId, chunk)
+    },
+    [],
+  )
+
+  /**
    * 更新消息内容(用于流式响应)
    * 将新内容追加到指定消息的末尾
    * @param messageId - 消息 ID
    * @param content - 要追加的内容
+   * @param sessionId - 当前会话 ID（用于 Artifact 关联）
    */
-  const updateMessageContent = useCallback((messageId: string, content: string) => {
-    setMessages(prev => prev.map((msg) => {
-      if (msg.id === messageId) {
-        // 创建新的 AIMessage 对象，保留流式状态和工具调用信息
-        const currentContent = typeof msg.content === 'string' ? msg.content : ''
-        const updatedMessage = new AIMessage({
-          content: currentContent + content,
-          id: msg.id,
-        }) as Message
-        updatedMessage.isStreaming = msg.isStreaming
-        updatedMessage.toolCallResults = msg.toolCallResults
-        updatedMessage.tool_calls = msg.tool_calls
-        return updatedMessage
-      }
-      return msg
-    }))
-  }, [])
+  const updateMessageContent = useCallback(
+    (messageId: string, content: string, sessionId: string) => {
+      parseArtifactsFromChunk(messageId, sessionId, content)
+
+      setMessages(prev => prev.map((msg) => {
+        if (msg.id === messageId) {
+          const currentContent = typeof msg.content === 'string' ? msg.content : ''
+          const updatedMessage = new AIMessage({
+            content: currentContent + content,
+            id: msg.id,
+          }) as Message
+          updatedMessage.isStreaming = msg.isStreaming
+          updatedMessage.toolCallResults = msg.toolCallResults
+          updatedMessage.tool_calls = msg.tool_calls
+          updatedMessage.artifacts = msg.artifacts
+          return updatedMessage
+        }
+        return msg
+      }))
+    },
+    [parseArtifactsFromChunk],
+  )
 
   /**
    * 完成流式传输

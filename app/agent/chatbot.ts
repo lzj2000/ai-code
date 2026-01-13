@@ -1,6 +1,7 @@
 import type { AIMessage } from '@langchain/core/messages'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ModelConfig } from './utils/modelFactory.js'
+import { SystemMessage } from '@langchain/core/messages'
 import {
   END,
   MessagesAnnotation,
@@ -10,6 +11,7 @@ import {
 import { ToolNode } from '@langchain/langgraph/prebuilt'
 import { SupabaseSaver } from '@skroyc/langgraph-supabase-checkpointer'
 import { supabase } from '@/app/database'
+import { generateArtifactId, getCanvasSystemPrompt } from '../canvas/canvas-prompt'
 import { createModel } from './utils/modelFactory'
 import { createLangChainTools } from './utils/tools'
 import '../utils/loadEnv'
@@ -37,7 +39,17 @@ async function createWorkflow(config?: ModelConfig, toolIds?: string[]) {
   // 聊天节点：处理用户输入并生成回复
   async function chatbotNode(state: typeof MessagesAnnotation.State) {
     try {
-      const response = await modelWithTools.invoke(state.messages)
+      // 为每次对话生成唯一的 artifact ID
+      const artifactId = generateArtifactId()
+
+      // 注入 Canvas System Prompt（包含生成的 artifact ID）
+      const canvasSystemPrompt = getCanvasSystemPrompt(artifactId)
+      const systemMessage = new SystemMessage(canvasSystemPrompt)
+
+      // 将系统消息添加到消息数组开头
+      const messagesWithSystem = [systemMessage, ...state.messages]
+
+      const response = await modelWithTools.invoke(messagesWithSystem)
       return { messages: [response] }
     }
     catch (error) {

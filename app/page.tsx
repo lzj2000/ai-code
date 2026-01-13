@@ -1,6 +1,7 @@
 'use client'
 
 import type { BaseMessage } from '@langchain/core/messages'
+import type { CanvasArtifact } from './canvas/canvas-types'
 import type { Tool } from './components/tool-selector'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -8,13 +9,14 @@ import { unifiedToolsConfig } from './agent/config/tools.config'
 import { DEFAULT_MODEL_ID } from './agent/utils/models'
 
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import { CanvasDock } from './components/canvas/CanvasDock'
 // 导入组件
 import ChatHeader from './components/chat-header'
 import ChatInput from './components/chat-input'
 import ChatMessage from './components/chat-message'
 import Sidebar from './components/sidebar'
-import { useChatHistory } from './hooks/useChatHistory'
 
+import { useChatHistory } from './hooks/useChatHistory'
 import { useChatMessages } from './hooks/useChatMessages'
 // 导入自定义 Hooks
 import { useSendMessage } from './hooks/useSendMessage'
@@ -32,12 +34,15 @@ export interface Message extends BaseMessage {
   isStreaming?: boolean
   tool_calls?: ToolCall[]
   toolCallResults?: ToolCall[]
+  artifacts?: CanvasArtifact[]
 }
 
 export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID)
+  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
+  const [canvasOpen, setCanvasOpen] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 初始化加载模型选择
@@ -125,6 +130,21 @@ export default function ChatPage() {
     scrollToBottom()
   }, [messages])
 
+  useEffect(() => {
+    setActiveArtifactId(null)
+    setCanvasOpen(false)
+  }, [sessionId])
+
+  const allArtifacts = useMemo<CanvasArtifact[]>(() => {
+    const list: CanvasArtifact[] = []
+    messages.forEach((msg) => {
+      if (msg.artifacts && msg.artifacts.length > 0) {
+        list.push(...msg.artifacts)
+      }
+    })
+    return list
+  }, [messages])
+
   // ==================== 渲染 UI ====================
   return (
     <ProtectedRoute>
@@ -151,75 +171,100 @@ export default function ChatPage() {
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           />
 
-          {/* 消息容器 */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="flex flex-col space-y-4 p-4 md:p-6">
-              {messages.length === 0
-                ? (
-                    <div className="flex h-full min-h-[60vh] flex-col items-center justify-center">
-                      <h2 className="mb-2 text-lg font-medium text-foreground">
-                        有什么可以帮你？
-                      </h2>
-                      <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
-                        我是你的AI助手，可以回答问题、提供建议或帮你完成各种任务
-                      </p>
-                      {/* 快捷提示 */}
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                        {['写一首诗', '解释代码', '头脑风暴'].map((text, index) => (
-                          <button
-                            key={index}
-                            onClick={() => sendMessage(text)}
-                            className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-card-foreground transition-colors hover:bg-accent active:scale-[0.98]"
-                          >
-                            {text}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                : (
-                    <>
-                      {messages.map((message: Message) => (
-                        <ChatMessage key={message.id} message={message} />
-                      ))}
-                      {/* 加载状态 */}
-                      {isLoading && (
-                        <div className="flex items-start gap-3">
-                          <div className="rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-3">
-                            <div className="flex gap-1">
-                              <div
-                                className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
-                                style={{ animationDelay: '0ms' }}
+          {/* 对话区（消息 + 输入）与 Canvas 侧栏并排 */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* 左侧：消息 + 输入（同一个列，保证高度包含输入框） */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* 消息容器 */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="flex flex-col space-y-4 p-4 md:p-6">
+                  {messages.length === 0
+                    ? (
+                        <div className="flex h-full min-h-[60vh] flex-col items-center justify-center">
+                          <h2 className="mb-2 text-lg font-medium text-foreground">
+                            有什么可以帮你？
+                          </h2>
+                          <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
+                            我是你的AI助手，可以回答问题、提供建议或帮你完成各种任务
+                          </p>
+                          {/* 快捷提示 */}
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            {['写一首诗', '解释代码', '头脑风暴'].map((text, index) => (
+                              <button
+                                key={index}
+                                onClick={() => sendMessage(text)}
+                                className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-card-foreground transition-colors hover:bg-accent active:scale-[0.98]"
                               >
-                              </div>
-                              <div
-                                className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
-                                style={{ animationDelay: '150ms' }}
-                              >
-                              </div>
-                              <div
-                                className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
-                                style={{ animationDelay: '300ms' }}
-                              >
-                              </div>
-                            </div>
+                                {text}
+                              </button>
+                            ))}
                           </div>
                         </div>
+                      )
+                    : (
+                        <>
+                          {messages.map((message: Message) => (
+                            <ChatMessage
+                              key={message.id}
+                              message={message}
+                              onFocusArtifact={(artifactId) => {
+                                setActiveArtifactId(artifactId)
+                                setCanvasOpen(true)
+                              }}
+                            />
+                          ))}
+                          {/* 加载状态 */}
+                          {isLoading && (
+                            <div className="flex items-start gap-3">
+                              <div className="rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-3">
+                                <div className="flex gap-1">
+                                  <div
+                                    className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+                                    style={{ animationDelay: '0ms' }}
+                                  >
+                                  </div>
+                                  <div
+                                    className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+                                    style={{ animationDelay: '150ms' }}
+                                  >
+                                  </div>
+                                  <div
+                                    className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+                                    style={{ animationDelay: '300ms' }}
+                                  >
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <div ref={messagesEndRef} />
+                        </>
                       )}
-                      <div ref={messagesEndRef} />
-                    </>
-                  )}
-            </div>
-          </div>
+                </div>
+              </div>
 
-          {/* 输入区域 */}
-          <ChatInput
-            availableTools={availableTools}
-            onSendMessage={sendMessage}
-            isLoading={isLoading}
-            selectedModelId={selectedModelId}
-            onModelChange={handleModelChange}
-          />
+              {/* 输入区域 */}
+              <ChatInput
+                availableTools={availableTools}
+                onSendMessage={sendMessage}
+                isLoading={isLoading}
+                selectedModelId={selectedModelId}
+                onModelChange={handleModelChange}
+              />
+            </div>
+
+            {/* 右侧：Canvas 侧栏（高度对齐消息 + 输入） */}
+            {allArtifacts.length > 0 && (
+              <div className="hidden lg:flex">
+                <CanvasDock
+                  artifacts={allArtifacts}
+                  activeArtifactId={activeArtifactId}
+                  isOpen={canvasOpen}
+                  onToggleOpen={() => setCanvasOpen(prev => !prev)}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </ProtectedRoute>

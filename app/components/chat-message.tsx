@@ -1,13 +1,32 @@
 import type { Message } from '../page'
+import { FileCode2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ToolCallDisplay } from './ToolCallDisplay'
 
-interface ChatMessageProps {
-  message: Message
+function stripCanvasArtifacts(text: string): string {
+  const withoutComplete = text.replace(/<canvasArtifact[\s\S]*?<\/canvasArtifact>/gi, '')
+  const lower = withoutComplete.toLowerCase()
+  const openTag = '<canvasartifact'
+  const openIdx = lower.indexOf(openTag)
+  if (openIdx === -1) {
+    return withoutComplete
+  }
+
+  const closeIdx = lower.indexOf('</canvasartifact>', openIdx)
+  if (closeIdx === -1) {
+    return withoutComplete.slice(0, openIdx)
+  }
+
+  return withoutComplete
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
+interface ChatMessageProps {
+  message: Message
+  onFocusArtifact?: (artifactId: string) => void
+}
+
+export default function ChatMessage({ message, onFocusArtifact }: ChatMessageProps) {
   const messageType = message.getType?.() || (message as any)._getType?.()
   const isUser = messageType === 'human'
   // 处理不同类型的 content
@@ -43,6 +62,10 @@ export default function ChatMessage({ message }: ChatMessageProps) {
   }
   else {
     messageContent = JSON.stringify(message.content)
+  }
+
+  if (!isUser && typeof messageContent === 'string') {
+    messageContent = stripCanvasArtifacts(messageContent)
   }
 
   return (
@@ -85,6 +108,37 @@ export default function ChatMessage({ message }: ChatMessageProps) {
             {messageContent}
           </ReactMarkdown>
         </div>
+
+        {!isUser && message.artifacts && message.artifacts.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {message.artifacts.map((artifact) => {
+              return (
+                <button
+                  key={artifact.id}
+                  type="button"
+                  onClick={() => onFocusArtifact?.(artifact.id)}
+                  className="w-full rounded-xl border border-border bg-background/40 px-3 py-2 text-left transition-colors hover:bg-accent active:scale-[0.99]"
+                  aria-label={`打开 ${artifact.title}`}
+                  title="点击在右侧侧边栏打开"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card">
+                      <FileCode2 className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium truncate">
+                        {artifact.title || '代码产物'}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        点击在右侧打开
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
