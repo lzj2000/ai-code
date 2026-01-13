@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import type { CanvasArtifact } from '../../canvas/canvas-types'
-import { ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { ChevronsLeft } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { CanvasArtifactPanel } from './CanvasArtifactPanel'
 
@@ -142,52 +142,45 @@ export function CanvasDock({
         />
       )}
       <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between px-2 py-2 border-b border-border">
-          <div className="flex items-center gap-2 min-w-0">
-            <button
-              type="button"
-              onClick={onToggleOpen}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card hover:bg-accent transition-colors"
-              aria-label={isOpen ? '收起 Canvas' : '展开 Canvas'}
-            >
-              {isOpen ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-            </button>
-
-            {isOpen && (
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">Canvas</div>
-                <div className="text-[11px] text-muted-foreground truncate">
-                  {activeArtifact ? activeArtifact.title : '暂无 Artifact'}
-                </div>
+        {isOpen
+          ? (
+              <div className="flex-1 overflow-hidden">
+                {artifacts.length === 0
+                  ? (
+                      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                        还没有生成 Artifact
+                      </div>
+                    )
+                  : (
+                      <div className="h-full overflow-hidden">
+                        {activeArtifact
+                          ? (
+                              <CanvasArtifactPanel
+                                artifact={activeArtifact}
+                                onToggleDock={onToggleOpen}
+                              />
+                            )
+                          : (
+                              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                                点击消息中的代码卡片打开产物
+                              </div>
+                            )}
+                      </div>
+                    )}
+              </div>
+            )
+          : (
+              <div className="h-full flex flex-col items-center justify-start p-2">
+                <button
+                  type="button"
+                  onClick={onToggleOpen}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card hover:bg-accent transition-colors"
+                  aria-label="展开 Canvas"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </button>
               </div>
             )}
-          </div>
-
-        </div>
-
-        {isOpen && (
-          <div className="flex-1 overflow-hidden">
-            {artifacts.length === 0
-              ? (
-                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                    还没有生成 Artifact
-                  </div>
-                )
-              : (
-                  <div className="h-full overflow-hidden">
-                    {activeArtifact
-                      ? (
-                          <CanvasArtifactPanel artifact={activeArtifact} />
-                        )
-                      : (
-                          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                            点击消息中的代码卡片打开产物
-                          </div>
-                        )}
-                  </div>
-                )}
-          </div>
-        )}
       </div>
     </div>
   )

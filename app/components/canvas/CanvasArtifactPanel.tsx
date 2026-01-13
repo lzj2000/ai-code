@@ -1,7 +1,7 @@
 'use client'
 
 import type { CanvasArtifact, CanvasStatus } from '../../canvas/canvas-types'
-import { Check, Copy, Download, ExternalLink, Eye, Monitor, RectangleHorizontal, Smartphone, Tablet, Terminal, Trash2, X } from 'lucide-react'
+import { Check, ChevronsRight, Copy, Download, ExternalLink, Eye, Monitor, RectangleHorizontal, Smartphone, Tablet, Terminal, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildVirtualProjectFiles } from '../../canvas/virtual-project'
 import { CodePreviewPanel } from './CodePreviewPanel'
@@ -12,6 +12,8 @@ import { CodePreviewPanel } from './CodePreviewPanel'
 interface CanvasArtifactPanelProps {
   /** 当前选中的 artifact */
   artifact: CanvasArtifact
+  /** 切换 Canvas 侧栏展开/收起 */
+  onToggleDock?: () => void
 }
 
 /**
@@ -32,7 +34,7 @@ type Viewport = 'desktop' | 'tablet' | 'phone'
  * - 顶部操作（切换 tab、切换视口、导出）
  * - 渲染预览 iframe 或代码文本
  */
-export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
+export function CanvasArtifactPanel({ artifact, onToggleDock }: CanvasArtifactPanelProps) {
   const [activeTab, setActiveTab] = useState<TabKeyLite>('preview')
   const [consoleOutput, setConsoleOutput] = useState<string[]>([])
   const [executionError, setExecutionError] = useState('')
@@ -202,12 +204,25 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
   return (
     <div className="w-full h-full overflow-hidden bg-muted flex flex-col">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card">
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-foreground truncate">
-            {artifact.title}
-          </div>
-          <div className="text-[11px] text-muted-foreground">
-            {statusText}
+        <div className="flex items-center gap-2 min-w-0">
+          {onToggleDock && (
+            <button
+              type="button"
+              className={iconButtonClass(false)}
+              onClick={onToggleDock}
+              title="收起 Canvas"
+              aria-label="收起 Canvas"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+          )}
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-foreground truncate">
+              {artifact.title}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {statusText}
+            </div>
           </div>
         </div>
 

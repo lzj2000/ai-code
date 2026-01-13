@@ -130,12 +130,6 @@ export function CodePreviewPanel({
 
     iframe.srcdoc = html
 
-    // 超时检测
-    timeoutRef.current = setTimeout(() => {
-      onStatusChange('error')
-      onError('代码执行超时（5秒），可能存在无限循环或语法错误')
-    }, 5000)
-
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
