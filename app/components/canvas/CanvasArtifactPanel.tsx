@@ -102,15 +102,15 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
   const iconButtonClass = (isActive: boolean) => {
     const base = 'inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors'
     if (isActive)
-      return `${base} bg-slate-800 border-slate-700 text-slate-100`
-    return `${base} bg-transparent border-slate-800 text-slate-300 hover:bg-slate-900`
+      return `${base} bg-accent border-border text-foreground`
+    return `${base} bg-background border-border text-muted-foreground hover:bg-accent`
   }
 
   const dropdownButtonClass = (isActive: boolean) => {
     const base = 'inline-flex h-8 items-center gap-1.5 rounded-md border px-2 transition-colors'
     if (isActive)
-      return `${base} bg-slate-800 border-slate-700 text-slate-100`
-    return `${base} bg-transparent border-slate-800 text-slate-300 hover:bg-slate-900`
+      return `${base} bg-accent border-border text-foreground`
+    return `${base} bg-background border-border text-muted-foreground hover:bg-accent`
   }
 
   const handleCopyConsole = useCallback(async () => {
@@ -200,13 +200,13 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
   }, [viewportMenuOpen])
 
   return (
-    <div className="w-full h-full overflow-hidden bg-[#0B1220] flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800">
+    <div className="w-full h-full overflow-hidden bg-muted flex flex-col">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-slate-100 truncate">
+          <div className="text-sm font-medium text-foreground truncate">
             {artifact.title}
           </div>
-          <div className="text-[11px] text-slate-400">
+          <div className="text-[11px] text-muted-foreground">
             {statusText}
           </div>
         </div>
@@ -257,10 +257,10 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
             </button>
 
             {viewportMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-44 overflow-hidden rounded-md border border-slate-700 bg-slate-950 shadow-lg z-20">
+              <div className="absolute right-0 top-full mt-2 w-44 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg z-20">
                 <button
                   type="button"
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-200 hover:bg-slate-900"
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-accent"
                   onClick={() => {
                     setViewport('desktop')
                     setViewportMenuOpen(false)
@@ -274,7 +274,7 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
                 </button>
                 <button
                   type="button"
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-200 hover:bg-slate-900"
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-accent"
                   onClick={() => {
                     setViewport('tablet')
                     setViewportMenuOpen(false)
@@ -288,7 +288,7 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
                 </button>
                 <button
                   type="button"
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-200 hover:bg-slate-900"
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-accent"
                   onClick={() => {
                     setViewport('phone')
                     setViewportMenuOpen(false)
@@ -315,7 +315,7 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
           </button>
           <button
             type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-800 text-slate-300 hover:bg-slate-900 transition-colors"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent transition-colors"
             onClick={() => {
               // 导出为“虚拟工程文件集合”，便于用户在本地快速落地运行/调试
               const files = buildVirtualProjectFiles(artifact)
@@ -336,9 +336,9 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 pb-4">
         {/* 使用 min-h-0 让内部滚动区域在 flex 容器中正常收缩 */}
-        <div className="h-full flex flex-col bg-[#020617]">
+        <div className="h-full flex flex-col bg-background">
           <div className="flex-1 min-h-0 flex items-stretch justify-center">
             <CodePreviewPanel
               code={artifact.code.content}
@@ -353,9 +353,9 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
           </div>
 
           {activeTab === 'preview' && showConsole && (
-            <div className="h-56 bg-white border-t border-slate-200">
-              <div className="h-10 px-3 flex items-center justify-between border-b border-slate-200">
-                <div className="text-sm font-medium text-slate-800">
+            <div className="h-56 bg-card border-t border-border">
+              <div className="h-10 px-3 flex items-center justify-between border-b border-border">
+                <div className="text-sm font-medium text-foreground">
                   Console
                 </div>
                 <div className="flex items-center gap-2">
@@ -363,12 +363,12 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
                     value={consoleFilter}
                     onChange={e => setConsoleFilter(e.target.value)}
                     placeholder="Filter..."
-                    className="h-7 w-44 rounded-md border border-slate-200 px-2 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-slate-200"
+                    className="h-7 w-44 rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring/20"
                   />
                   <button
                     type="button"
                     onClick={handleCopyConsole}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent"
                     title="复制"
                     aria-label="复制"
                   >
@@ -377,7 +377,7 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
                   <button
                     type="button"
                     onClick={() => setConsoleOutput([])}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent"
                     title="清空"
                     aria-label="清空"
                   >
@@ -386,7 +386,7 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
                   <button
                     type="button"
                     onClick={() => setShowConsole(false)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent"
                     title="关闭"
                     aria-label="关闭"
                   >
@@ -398,12 +398,12 @@ export function CanvasArtifactPanel({ artifact }: CanvasArtifactPanelProps) {
               <div className="h-[calc(100%-2.5rem)] overflow-auto px-3 py-4">
                 {filteredConsoleOutput.length === 0
                   ? (
-                      <div className="h-full flex items-start justify-center pt-10 text-sm text-slate-500">
+                      <div className="h-full flex items-start justify-center pt-10 text-sm text-muted-foreground">
                         No logs available to display
                       </div>
                     )
                   : (
-                      <div className="space-y-1 font-mono text-xs text-slate-800">
+                      <div className="space-y-1 font-mono text-xs text-foreground">
                         {filteredConsoleOutput.map((line, index) => (
                           <div key={index} className="whitespace-pre-wrap break-words">
                             {line}

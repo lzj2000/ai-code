@@ -146,8 +146,7 @@ const Sidebar = forwardRef((
 
       {/* 侧边栏 */}
       <div
-        className={`fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${isCollapsed ? 'md:w-16' : 'w-64'}`}
+        className={`fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ease-in-out md:relative md:translate-x-0 md:my-3 md:ml-3 md:mr-3 md:h-[calc(100vh-1.5rem)] md:rounded-2xl md:border md:border-sidebar-border md:overflow-hidden md:shadow-sm ${isOpen ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'md:w-16' : 'w-64'}`}
       >
         <div className="border-b border-sidebar-border px-4 py-4">
           <div className="flex items-center justify-between">

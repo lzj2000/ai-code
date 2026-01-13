@@ -148,7 +148,7 @@ export function CodePreviewPanel({
     switch (activeTab) {
       case 'preview':
         return (
-          <div className="flex-1 bg-[#0F172A] flex items-stretch justify-center overflow-hidden">
+          <div className="flex-1 bg-muted flex items-stretch justify-center overflow-hidden">
             <div
               className={`relative h-full ${viewportWidthClass} ${viewport === 'desktop' ? '' : 'overflow-hidden'}`}
             >
@@ -160,10 +160,10 @@ export function CodePreviewPanel({
                 title="Canvas Preview"
               />
               {!isReady && (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#0F172A]/80 backdrop-blur-sm">
+                <div className="absolute inset-0 flex items-center justify-center bg-muted/80 backdrop-blur-sm">
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm text-slate-400">正在渲染...</span>
+                    <span className="text-sm text-muted-foreground">正在渲染...</span>
                   </div>
                 </div>
               )}
@@ -173,16 +173,16 @@ export function CodePreviewPanel({
 
       case 'code':
         return (
-          <div className="h-full bg-[#020617] p-3">
-            <div className="h-full w-full rounded-lg bg-[#020617] border border-slate-800 overflow-y-auto overflow-x-hidden">
+          <div className="h-full bg-muted p-3">
+            <div className="h-full w-full rounded-lg bg-background border border-border overflow-y-auto overflow-x-hidden">
               {executionError && (
-                <div className="border-b border-red-500/30 bg-red-950/30 px-3 py-2">
-                  <pre className="text-xs text-red-200 font-mono whitespace-pre-wrap break-words">
+                <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-2">
+                  <pre className="text-xs text-destructive font-mono whitespace-pre-wrap break-words">
                     {executionError}
                   </pre>
                 </div>
               )}
-              <pre className="text-xs text-slate-100 font-mono p-3 whitespace-pre-wrap break-words">
+              <pre className="text-xs text-foreground font-mono p-3 whitespace-pre-wrap break-words">
                 {code}
               </pre>
             </div>
