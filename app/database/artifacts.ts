@@ -5,8 +5,7 @@ export interface ArtifactRow {
   id: string
   title: string
   type: string
-  language: string
-  code: string
+  project: any
   user_id: string
   share_id?: string | null
   source_artifact_id?: string | null
@@ -17,8 +16,7 @@ export interface CreateArtifactInput {
   id: string
   title: string
   type: string
-  language: string
-  code: string
+  project: any
   userId: string
   shareId?: string
   sourceArtifactId?: string
@@ -32,8 +30,7 @@ export async function createArtifact(input: CreateArtifactInput, client?: Supaba
       id: input.id,
       title: input.title,
       type: input.type,
-      language: input.language,
-      code: input.code,
+      project: input.project,
       user_id: input.userId,
       share_id: input.shareId ?? null,
       source_artifact_id: input.sourceArtifactId ?? null,

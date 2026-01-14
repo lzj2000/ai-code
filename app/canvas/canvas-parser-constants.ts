@@ -8,9 +8,13 @@
 export const ARTIFACT_TAG_OPEN = '<canvasArtifact'
 export const ARTIFACT_TAG_CLOSE = '</canvasArtifact>'
 
-/** 代码内容标签 */
-export const CODE_TAG_OPEN = '<canvasCode'
-export const CODE_TAG_CLOSE = '</canvasCode>'
+/** 文件集合标签 */
+export const FILES_TAG_OPEN = '<canvasFiles'
+export const FILES_TAG_CLOSE = '</canvasFiles>'
+
+/** 单文件标签 */
+export const FILE_TAG_OPEN = '<canvasFile'
+export const FILE_TAG_CLOSE = '</canvasFile>'
 
 /** 配置标签（可选，未来扩展） */
 export const CONFIG_TAG_OPEN = '<canvasConfig>'
@@ -21,6 +25,8 @@ export const ATTR_ID = 'id'
 export const ATTR_TYPE = 'type'
 export const ATTR_TITLE = 'title'
 export const ATTR_LANGUAGE = 'language'
+export const ATTR_PATH = 'path'
+export const ATTR_ENTRY = 'entry'
 
 /** XML 转义字符映射 */
 export const XML_ESCAPE_MAP: Record<string, string> = {

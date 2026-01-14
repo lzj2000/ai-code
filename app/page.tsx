@@ -41,7 +41,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID)
-  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
+  const [activeArtifactKey, setActiveArtifactKey] = useState<string | null>(null)
   const [canvasOpen, setCanvasOpen] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -131,7 +131,7 @@ export default function ChatPage() {
   }, [messages])
 
   useEffect(() => {
-    setActiveArtifactId(null)
+    setActiveArtifactKey(null)
     setCanvasOpen(false)
   }, [sessionId])
 
@@ -207,8 +207,8 @@ export default function ChatPage() {
                             <ChatMessage
                               key={message.id}
                               message={message}
-                              onFocusArtifact={(artifactId) => {
-                                setActiveArtifactId(artifactId)
+                              onFocusArtifact={(artifactKey) => {
+                                setActiveArtifactKey(artifactKey)
                                 setCanvasOpen(true)
                               }}
                             />
@@ -258,7 +258,7 @@ export default function ChatPage() {
               <div className="hidden lg:flex">
                 <CanvasDock
                   artifacts={allArtifacts}
-                  activeArtifactId={activeArtifactId}
+                  activeArtifactKey={activeArtifactKey}
                   isOpen={canvasOpen}
                   onToggleOpen={() => setCanvasOpen(prev => !prev)}
                 />

@@ -15,6 +15,23 @@ function normalizeLineEndings(input: string): string {
   return input.replace(/\r\n/g, '\n')
 }
 
+function normalizePath(input: string): string {
+  const raw = String(input || '').replace(/\\/g, '/').trim()
+  const noPrefix = raw.startsWith('./') ? raw.slice(2) : raw
+  const parts = noPrefix.split('/').filter(Boolean)
+  const stack: string[] = []
+  for (const part of parts) {
+    if (part === '.')
+      continue
+    if (part === '..') {
+      stack.pop()
+      continue
+    }
+    stack.push(part)
+  }
+  return stack.join('/')
+}
+
 /**
  * 根据 artifact 生成一份可运行的虚拟工程文件集（Vite + React）
  *
@@ -24,22 +41,14 @@ function normalizeLineEndings(input: string): string {
  */
 export function buildVirtualProjectFiles(
   artifact: CanvasArtifact,
-  overrideCode?: string,
 ): VirtualFile[] {
-  // 生成一份最小可运行的 Vite + React 工程，用于“导出”场景
-  const code = normalizeLineEndings(overrideCode ?? artifact.code.content)
-
-  // 用户代码作为 App.jsx 的主体（预期包含 export default）
-  const appFile = `import React from 'react'
-
-${code}
-`
+  const projectFiles = artifact.project?.files || []
+  const entryPath = normalizePath(artifact.project?.entryPath || '') || 'src/App.jsx'
 
   // main.jsx 负责挂载 React Root，保持结构与标准 Vite 模板一致
   const mainFile = `import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App'
-import './index.css'
+import App from './App.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -98,14 +107,53 @@ export default defineConfig({
 body { margin: 0; }
 `
 
-  return [
+  const userFiles: VirtualFile[] = projectFiles
+    .map((f) => {
+      const path = normalizePath(f.path)
+      const content = normalizeLineEndings(String(f.content || ''))
+      return { path, content }
+    })
+    .filter(f => f.path.length > 0)
+
+  const hasEntry = userFiles.some(f => f.path === entryPath)
+  const entryFallback = `import React from 'react'
+
+export default function App() {
+  return (
+    <div style={{ padding: 16 }}>
+      未找到入口文件：${entryPath}
+    </div>
+  )
+}
+`
+
+  const viteScaffold: VirtualFile[] = [
     { path: 'package.json', content: packageJson },
     { path: 'vite.config.js', content: viteConfig },
     { path: 'index.html', content: indexHtml },
     { path: 'src/main.jsx', content: mainFile },
-    { path: 'src/App.jsx', content: appFile },
     { path: 'src/index.css', content: indexCss },
   ]
+
+  const extraEntryFile: VirtualFile[] = hasEntry
+    ? []
+    : [{ path: entryPath, content: normalizeLineEndings(entryFallback) }]
+
+  const ensuredAppProxy: VirtualFile[] = [
+    {
+      path: 'src/App.jsx',
+      content: normalizeLineEndings(`export { default } from '/${entryPath}'\n`),
+    },
+  ]
+
+  const merged = new Map<string, VirtualFile>()
+  for (const f of [...viteScaffold, ...userFiles, ...extraEntryFile, ...ensuredAppProxy]) {
+    if (!f.path)
+      continue
+    merged.set(f.path, f)
+  }
+
+  return Array.from(merged.values()).sort((a, b) => a.path.localeCompare(b.path))
 }
 
 /**

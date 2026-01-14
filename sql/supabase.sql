@@ -1,135 +1,62 @@
--- Supabase 初始化 SQL（Sessions + Artifacts + 分享链接无需登录 + Checkpoints Bucket）
--- 使用方式：把本文件整段粘贴到 Supabase SQL Editor 执行即可
---
--- 说明：
--- - sessions：会话表 + RLS（用户只能访问自己的会话）
--- - artifacts：代码产物持久化表 + RLS（用户只能访问自己的产物）
--- - share：通过 share_id + RPC 支持“无需登录”的分享链接访问（不开放表级 anon select，避免被枚举）
--- - storage：checkpoints bucket 访问策略（用于检查点/存储相关能力）
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
--- =========================================================
--- 01. sessions 表（会话）
--- =========================================================
-
-create table if not exists public.sessions (
-  id uuid primary key,
-  name text not null,
-  user_id uuid not null references auth.users (id) on delete cascade,
-  created_at timestamptz not null default now()
+CREATE TABLE public.artifacts (
+  id uuid NOT NULL,
+  title text NOT NULL,
+  type text NOT NULL,
+  language text NOT NULL DEFAULT 'jsx'::text,
+  code text NOT NULL DEFAULT ''::text,
+  user_id uuid NOT NULL,
+  source_artifact_id text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  share_id uuid UNIQUE,
+  project jsonb NOT NULL DEFAULT '{}'::jsonb,
+  CONSTRAINT artifacts_pkey PRIMARY KEY (id),
+  CONSTRAINT artifacts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-
-create index if not exists idx_sessions_user_id
-  on public.sessions (user_id);
-
-create index if not exists idx_sessions_created_at
-  on public.sessions (created_at desc);
-
-alter table public.sessions enable row level security;
-
-drop policy if exists "Users can access their own sessions" on public.sessions;
-create policy "Users can access their own sessions"
-  on public.sessions
-  for all
-  to authenticated
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
-
--- =========================================================
--- 02. artifacts 表（产物持久化存储）
--- =========================================================
-
-create table if not exists public.artifacts (
-  id uuid primary key,
-  title text not null,
-  type text not null,
-  language text not null default 'jsx',
-  code text not null,
-  user_id uuid not null references auth.users (id) on delete cascade,
-  share_id uuid null,
-  source_artifact_id text null,
-  created_at timestamptz not null default now()
+CREATE TABLE public.checkpoint_blobs (
+  thread_id uuid NOT NULL,
+  checkpoint_ns text NOT NULL DEFAULT ''::text,
+  channel text NOT NULL,
+  version text NOT NULL,
+  type text NOT NULL DEFAULT 'json'::text,
+  value text,
+  user_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT checkpoint_blobs_pkey PRIMARY KEY (thread_id, checkpoint_ns, channel, version),
+  CONSTRAINT checkpoint_blobs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-
-create index if not exists artifacts_user_id_created_at_idx
-  on public.artifacts (user_id, created_at desc);
-
-create index if not exists artifacts_source_artifact_id_idx
-  on public.artifacts (source_artifact_id);
-
-create index if not exists artifacts_share_id_idx
-  on public.artifacts (share_id);
-
-alter table public.artifacts enable row level security;
-
-drop policy if exists "artifacts_select_own" on public.artifacts;
-create policy "artifacts_select_own"
-  on public.artifacts
-  for select
-  to authenticated
-  using (user_id = auth.uid());
-
-drop policy if exists "artifacts_insert_own" on public.artifacts;
-create policy "artifacts_insert_own"
-  on public.artifacts
-  for insert
-  to authenticated
-  with check (user_id = auth.uid());
-
--- share_id 唯一：避免多个记录共用一个分享链接
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'artifacts_share_id_key'
-  ) then
-    alter table public.artifacts
-      add constraint artifacts_share_id_key unique (share_id);
-  end if;
-end$$;
-
--- =========================================================
--- 03. 分享能力（无需登录访问）
--- =========================================================
--- 关键点：
--- - 不要给 anon 增加 artifacts 表的 select 权限/策略（否则容易被遍历/枚举）
--- - 匿名访问只允许通过 RPC 按 share_id 精确查询
-
-create or replace function public.get_artifact_by_share_id(p_share_id uuid)
-returns table (
-  id uuid,
-  title text,
-  type text,
-  language text,
-  code text,
-  created_at timestamptz
-)
-language sql
-security definer
-set search_path = public
-as $$
-  select
-    a.id,
-    a.title,
-    a.type,
-    a.language,
-    a.code,
-    a.created_at
-  from public.artifacts a
-  where a.share_id = p_share_id
-  limit 1;
-$$;
-
-grant execute on function public.get_artifact_by_share_id(uuid) to anon;
-grant execute on function public.get_artifact_by_share_id(uuid) to authenticated;
-
--- =========================================================
--- 04. storage（checkpoints bucket 访问策略）
--- =========================================================
--- 注意：这里的策略针对 storage.objects（Supabase Storage 的元数据表）
-
-drop policy if exists "Checkpoints bucket access" on storage.objects;
-create policy "Checkpoints bucket access"
-  on storage.objects
-  for all
-  using (bucket_id = 'checkpoints')
-  with check (bucket_id = 'checkpoints');
+CREATE TABLE public.checkpoint_writes (
+  thread_id uuid NOT NULL,
+  checkpoint_ns text NOT NULL DEFAULT ''::text,
+  checkpoint_id text NOT NULL,
+  task_id text NOT NULL,
+  idx integer NOT NULL,
+  channel text NOT NULL,
+  type text NOT NULL DEFAULT 'json'::text,
+  value bytea NOT NULL,
+  user_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT checkpoint_writes_pkey PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx),
+  CONSTRAINT checkpoint_writes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.checkpoints (
+  thread_id uuid NOT NULL,
+  checkpoint_ns text NOT NULL DEFAULT ''::text,
+  checkpoint_id text NOT NULL,
+  parent_checkpoint_id text,
+  checkpoint jsonb NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  user_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT checkpoints_pkey PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id),
+  CONSTRAINT checkpoints_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.sessions (
+  id text NOT NULL,
+  name text NOT NULL,
+  user_id text NOT NULL,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT sessions_pkey PRIMARY KEY (id)
+);

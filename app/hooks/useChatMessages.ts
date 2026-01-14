@@ -57,31 +57,27 @@ export function useChatMessages() {
     (messageId: string, sessionId: string, chunk: string) => {
       const parser = getCanvasParser()
 
-      const upsertArtifact = (
+      const patchOrder: string[] = []
+      const patchByArtifactId = new Map<
+        string,
+        Array<(current: CanvasArtifact | undefined) => CanvasArtifact>
+      >()
+
+      const enqueuePatch = (
         artifactId: string,
-        updater: (current: CanvasArtifact | undefined) => CanvasArtifact,
+        step: (current: CanvasArtifact | undefined) => CanvasArtifact,
       ) => {
-        setMessages(prev => prev.map((msg) => {
-          if (msg.id !== messageId)
-            return msg
-
-          const existing = msg.artifacts || []
-          const idx = existing.findIndex(a => a.id === artifactId)
-          if (idx === -1) {
-            const nextArtifacts = [...existing, updater(undefined)]
-            return { ...msg, artifacts: nextArtifacts } as Message
-          }
-
-          const nextArtifacts = [...existing]
-          nextArtifacts[idx] = updater(existing[idx])
-          return { ...msg, artifacts: nextArtifacts } as Message
-        }))
+        if (!patchByArtifactId.has(artifactId)) {
+          patchByArtifactId.set(artifactId, [])
+          patchOrder.push(artifactId)
+        }
+        patchByArtifactId.get(artifactId)!.push(step)
       }
 
       parser.setCallbacks({
         onArtifactStart: (metadata) => {
           const now = new Date()
-          upsertArtifact(metadata.id, (current) => {
+          enqueuePatch(metadata.id, (current) => {
             if (current) {
               return {
                 ...current,
@@ -97,7 +93,7 @@ export function useChatMessages() {
               id: metadata.id,
               type: metadata.type,
               title: metadata.title,
-              code: { language: 'jsx', content: '' },
+              project: { entryPath: '', files: [] },
               status: 'creating',
               isStreaming: true,
               messageId,
@@ -108,14 +104,14 @@ export function useChatMessages() {
             }
           })
         },
-        onCodeUpdate: (data) => {
+        onFileUpdate: (data) => {
           const now = new Date()
-          upsertArtifact(data.artifactId, (current) => {
+          enqueuePatch(data.artifactId, (current) => {
             const base: CanvasArtifact = current || {
               id: data.artifactId,
               type: 'react',
               title: data.artifactId,
-              code: { language: data.language, content: '' },
+              project: { entryPath: '', files: [] },
               status: 'creating',
               isStreaming: true,
               messageId,
@@ -125,9 +121,18 @@ export function useChatMessages() {
               updatedAt: now,
             }
 
+            const existingFiles = base.project.files
+            const idx = existingFiles.findIndex(f => f.path === data.path)
+            const nextFiles = [...existingFiles]
+            const nextFile = { path: data.path, language: data.language, content: data.content }
+            if (idx === -1)
+              nextFiles.push(nextFile)
+            else
+              nextFiles[idx] = nextFile
+
             return {
               ...base,
-              code: { language: data.language, content: data.content },
+              project: { ...base.project, files: nextFiles },
               status: 'streaming',
               isStreaming: true,
               updatedAt: now,
@@ -136,12 +141,12 @@ export function useChatMessages() {
         },
         onArtifactComplete: (artifact) => {
           const now = new Date()
-          upsertArtifact(artifact.id, (current) => {
+          enqueuePatch(artifact.id, (current) => {
             const base: CanvasArtifact = current || {
               id: artifact.id,
               type: artifact.type,
               title: artifact.title,
-              code: artifact.code,
+              project: artifact.project,
               config: artifact.config,
               status: 'creating',
               isStreaming: true,
@@ -156,7 +161,7 @@ export function useChatMessages() {
               ...base,
               type: artifact.type,
               title: artifact.title,
-              code: artifact.code,
+              project: artifact.project,
               config: artifact.config,
               status: 'ready',
               isStreaming: false,
@@ -168,6 +173,8 @@ export function useChatMessages() {
       })
 
       parser.parse(messageId, chunk)
+
+      return { patchOrder, patchByArtifactId }
     },
     [],
   )
@@ -181,11 +188,38 @@ export function useChatMessages() {
    */
   const updateMessageContent = useCallback(
     (messageId: string, content: string, sessionId: string) => {
-      parseArtifactsFromChunk(messageId, sessionId, content)
+      const patch = parseArtifactsFromChunk(messageId, sessionId, content)
 
       setMessages(prev => prev.map((msg) => {
         if (msg.id === messageId) {
           const currentContent = typeof msg.content === 'string' ? msg.content : ''
+          const existingArtifacts = msg.artifacts || []
+          const byId = new Map(existingArtifacts.map(a => [a.id, a] as const))
+          const order = existingArtifacts.map(a => a.id)
+          const orderSet = new Set(order)
+
+          for (const artifactId of patch.patchOrder) {
+            const steps = patch.patchByArtifactId.get(artifactId)
+            if (!steps || steps.length === 0)
+              continue
+
+            let nextArtifact: CanvasArtifact | undefined = byId.get(artifactId)
+            for (const step of steps) {
+              nextArtifact = step(nextArtifact)
+            }
+            if (nextArtifact) {
+              byId.set(artifactId, nextArtifact)
+              if (!orderSet.has(artifactId)) {
+                orderSet.add(artifactId)
+                order.push(artifactId)
+              }
+            }
+          }
+
+          const nextArtifacts = order
+            .map(id => byId.get(id))
+            .filter(Boolean) as CanvasArtifact[]
+
           const updatedMessage = new AIMessage({
             content: currentContent + content,
             id: msg.id,
@@ -193,7 +227,7 @@ export function useChatMessages() {
           updatedMessage.isStreaming = msg.isStreaming
           updatedMessage.toolCallResults = msg.toolCallResults
           updatedMessage.tool_calls = msg.tool_calls
-          updatedMessage.artifacts = msg.artifacts
+          updatedMessage.artifacts = nextArtifacts
           return updatedMessage
         }
         return msg

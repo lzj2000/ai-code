@@ -23,7 +23,7 @@ function stripCanvasArtifacts(text: string): string {
 
 interface ChatMessageProps {
   message: Message
-  onFocusArtifact?: (artifactId: string) => void
+  onFocusArtifact?: (artifactKey: string) => void
 }
 
 export default function ChatMessage({ message, onFocusArtifact }: ChatMessageProps) {
@@ -112,11 +112,12 @@ export default function ChatMessage({ message, onFocusArtifact }: ChatMessagePro
         {!isUser && message.artifacts && message.artifacts.length > 0 && (
           <div className="mt-3 space-y-2">
             {message.artifacts.map((artifact) => {
+              const artifactKey = `${artifact.sessionId}:${artifact.messageId}:${artifact.id}`
               return (
                 <button
-                  key={artifact.id}
+                  key={artifactKey}
                   type="button"
-                  onClick={() => onFocusArtifact?.(artifact.id)}
+                  onClick={() => onFocusArtifact?.(artifactKey)}
                   className="w-full rounded-xl border border-border bg-background/40 px-3 py-2 text-left transition-colors hover:bg-accent active:scale-[0.99]"
                   aria-label={`打开 ${artifact.title}`}
                   title="点击在右侧侧边栏打开"

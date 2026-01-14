@@ -10,8 +10,7 @@ interface SharedArtifact {
   id: string
   title: string
   type: string
-  language: string
-  code: string
+  project: any
   created_at: string
 }
 
@@ -66,15 +65,15 @@ export default function SharePage({ params }: { params: Promise<{ shareId: strin
       return null
 
     const createdAt = new Date(artifact.created_at)
+    const project = (artifact.project && typeof artifact.project === 'object')
+      ? artifact.project
+      : { entryPath: '', files: [] }
 
     return {
       id: artifact.id,
       type: (artifact.type === 'component' ? 'component' : 'react'),
       title: artifact.title || '未命名组件',
-      code: {
-        language: (artifact.language === 'jsx' ? 'jsx' : 'jsx'),
-        content: artifact.code,
-      },
+      project,
       status: 'ready',
       isStreaming: false,
       messageId: '',
@@ -139,7 +138,6 @@ export default function SharePage({ params }: { params: Promise<{ shareId: strin
                 <div className="h-full flex flex-col bg-[#020617]">
                   <div className="flex-1 min-h-0 flex items-stretch justify-center">
                     <CodePreviewPanel
-                      code={canvasArtifact.code.content}
                       artifact={canvasArtifact}
                       activeTab="preview"
                       viewport={viewport}

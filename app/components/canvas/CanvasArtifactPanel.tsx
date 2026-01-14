@@ -4,7 +4,26 @@ import type { CanvasArtifact, CanvasStatus } from '../../canvas/canvas-types'
 import { Check, ChevronsRight, Copy, Download, ExternalLink, Eye, Monitor, RectangleHorizontal, Smartphone, Tablet, Terminal, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildVirtualProjectFiles } from '../../canvas/virtual-project'
+import { CanvasCodeFileViewer } from './CanvasCodeFileViewer'
+import { CanvasFileTreePanel } from './CanvasFileTreePanel'
 import { CodePreviewPanel } from './CodePreviewPanel'
+
+function normalizePath(input: string): string {
+  const raw = String(input || '').replace(/\\/g, '/').trim()
+  const noPrefix = raw.startsWith('./') ? raw.slice(2) : raw
+  const parts = noPrefix.split('/').filter(Boolean)
+  const stack: string[] = []
+  for (const part of parts) {
+    if (part === '.')
+      continue
+    if (part === '..') {
+      stack.pop()
+      continue
+    }
+    stack.push(part)
+  }
+  return stack.join('/')
+}
 
 /**
  * Artifact 面板入参
@@ -44,6 +63,7 @@ export function CanvasArtifactPanel({ artifact, onToggleDock }: CanvasArtifactPa
   const [viewportMenuOpen, setViewportMenuOpen] = useState(false)
   const [showConsole, setShowConsole] = useState(false)
   const [consoleFilter, setConsoleFilter] = useState('')
+  const [activeFilePath, setActiveFilePath] = useState<string>('')
   // 用 ref 做“点外部关闭”，避免把事件绑定到每个子节点上
   const viewportMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -58,12 +78,31 @@ export function CanvasArtifactPanel({ artifact, onToggleDock }: CanvasArtifactPa
     setShowConsole(false)
     setConsoleFilter('')
     setViewportMenuOpen(false)
+    setActiveFilePath('')
   }, [artifact.id])
 
   useEffect(() => {
     if (activeTab !== 'preview')
       setShowConsole(false)
   }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab !== 'code')
+      return
+    if (activeFilePath)
+      return
+
+    const files = artifact.project?.files || []
+    const normalizedEntry = normalizePath(artifact.project?.entryPath || '')
+    if (normalizedEntry && files.some(f => normalizePath(f.path) === normalizedEntry)) {
+      setActiveFilePath(normalizedEntry)
+      return
+    }
+
+    const firstFile = files[0]?.path
+    if (firstFile)
+      setActiveFilePath(normalizePath(firstFile))
+  }, [activeFilePath, activeTab, artifact.project])
 
   const handleStatusChange = useCallback((nextStatus: CanvasStatus) => {
     setStatus(nextStatus)
@@ -146,8 +185,7 @@ export function CanvasArtifactPanel({ artifact, onToggleDock }: CanvasArtifactPa
         body: JSON.stringify({
           title: artifact.title,
           type: artifact.type,
-          language: artifact.code.language,
-          code: artifact.code.content,
+          project: artifact.project,
           sourceArtifactId: artifact.id,
         }),
       })
@@ -171,7 +209,7 @@ export function CanvasArtifactPanel({ artifact, onToggleDock }: CanvasArtifactPa
     finally {
       setPersisting(false)
     }
-  }, [artifact.code.content, artifact.code.language, artifact.id, artifact.title, artifact.type, persisting])
+  }, [artifact.id, artifact.project, artifact.title, artifact.type, persisting])
 
   useEffect(() => {
     if (!viewportMenuOpen)
@@ -355,16 +393,47 @@ export function CanvasArtifactPanel({ artifact, onToggleDock }: CanvasArtifactPa
         {/* 使用 min-h-0 让内部滚动区域在 flex 容器中正常收缩 */}
         <div className="h-full flex flex-col bg-background">
           <div className="flex-1 min-h-0 flex items-stretch justify-center">
-            <CodePreviewPanel
-              code={artifact.code.content}
-              artifact={artifact}
-              activeTab={activeTab}
-              viewport={viewport}
-              executionError={executionError}
-              onStatusChange={handleStatusChange}
-              onConsoleOutput={setConsoleOutput}
-              onError={handleError}
-            />
+            {activeTab === 'preview'
+              ? (
+                  <CodePreviewPanel
+                    artifact={artifact}
+                    activeTab={activeTab}
+                    viewport={viewport}
+                    executionError={executionError}
+                    onStatusChange={handleStatusChange}
+                    onConsoleOutput={setConsoleOutput}
+                    onError={handleError}
+                  />
+                )
+              : (
+                  <div className="h-full w-full flex overflow-hidden">
+                    <div className="w-64 h-full border-r border-border bg-background">
+                      <CanvasFileTreePanel
+                        files={artifact.project?.files || []}
+                        activePath={activeFilePath || null}
+                        onSelect={path => setActiveFilePath(path)}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 h-full bg-background">
+                      <div className="h-full w-full overflow-hidden flex flex-col">
+                        {executionError && (
+                          <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-2">
+                            <pre className="text-xs text-destructive font-mono whitespace-pre-wrap break-words">
+                              {executionError}
+                            </pre>
+                          </div>
+                        )}
+                        <div className="flex-1 min-h-0">
+                          <CanvasCodeFileViewer
+                            files={artifact.project?.files || []}
+                            activePath={activeFilePath || null}
+                            emptyHint="选择左侧文件查看内容"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
           </div>
 
           {activeTab === 'preview' && showConsole && (

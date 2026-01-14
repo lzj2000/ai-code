@@ -6,8 +6,7 @@ import { createArtifact as dbCreateArtifact, getArtifactById as dbGetArtifactByI
 export interface CreateArtifactRequest {
   title?: string
   type?: string
-  language?: string
-  code: string
+  project: any
   sourceArtifactId?: string
 }
 
@@ -32,15 +31,14 @@ export class ArtifactService {
       throw new Error('缺少 userId')
     }
 
-    const code = typeof input?.code === 'string' ? input.code : ''
-    if (!code.trim()) {
-      throw new Error('缺少 code')
+    const project = (input as any)?.project
+    if (!project || typeof project !== 'object') {
+      throw new Error('缺少 project')
     }
 
     const id = randomUUID()
     const title = typeof input?.title === 'string' && input.title ? input.title : '未命名组件'
     const type = typeof input?.type === 'string' && input.type ? input.type : 'react'
-    const language = typeof input?.language === 'string' && input.language ? input.language : 'jsx'
     const sourceArtifactId = typeof input?.sourceArtifactId === 'string' ? input.sourceArtifactId : undefined
 
     await dbCreateArtifact(
@@ -48,8 +46,7 @@ export class ArtifactService {
         id,
         title,
         type,
-        language,
-        code,
+        project,
         userId,
         sourceArtifactId,
       },
@@ -64,16 +61,15 @@ export class ArtifactService {
       throw new Error('缺少 userId')
     }
 
-    const code = typeof input?.code === 'string' ? input.code : ''
-    if (!code.trim()) {
-      throw new Error('缺少 code')
+    const project = (input as any)?.project
+    if (!project || typeof project !== 'object') {
+      throw new Error('缺少 project')
     }
 
     const id = randomUUID()
     const shareId = randomUUID()
     const title = typeof input?.title === 'string' && input.title ? input.title : '未命名组件'
     const type = typeof input?.type === 'string' && input.type ? input.type : 'react'
-    const language = typeof input?.language === 'string' && input.language ? input.language : 'jsx'
     const sourceArtifactId = typeof input?.sourceArtifactId === 'string' ? input.sourceArtifactId : undefined
 
     await dbCreateArtifact(
@@ -81,8 +77,7 @@ export class ArtifactService {
         id,
         title,
         type,
-        language,
-        code,
+        project,
         userId,
         shareId,
         sourceArtifactId,

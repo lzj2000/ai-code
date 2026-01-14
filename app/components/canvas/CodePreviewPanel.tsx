@@ -3,14 +3,12 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { CanvasArtifact, CanvasStatus } from '../../canvas/canvas-types'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { generateIframeHTML, sanitizeCode } from '../../canvas/preview-utils'
+import { collectLucideIconsFromFiles, generateIframeHTML } from '../../canvas/preview-utils'
 
 /**
  * 代码预览面板入参
  */
 interface CodePreviewPanelProps {
-  /** 组件代码（期望包含 export default） */
-  code: string
   /** 当前 artifact（用于判断流式状态、作为 key 等） */
   artifact: CanvasArtifact
   /** 面板当前激活区：预览 / 代码 */
@@ -41,7 +39,6 @@ type Viewport = 'desktop' | 'tablet' | 'phone'
  * 通过 iframe srcdoc 执行用户 JSX，并通过 postMessage 将 ready/console/error 回传给父页面。
  */
 export function CodePreviewPanel({
-  code,
   artifact,
   activeTab,
   viewport = 'desktop',
@@ -110,9 +107,11 @@ export function CodePreviewPanel({
       return
     }
 
-    // 检查代码是否包含 export default（避免执行不完整的代码）
-    if (!code.includes('export default')) {
-      onStatusChange('streaming')
+    const project = artifact.project
+    const hasFiles = Array.isArray(project?.files) && project.files.length > 0
+    if (!hasFiles) {
+      onStatusChange('error')
+      onError('缺少可执行的 files，无法执行预览')
       return
     }
 
@@ -125,8 +124,8 @@ export function CodePreviewPanel({
     setIsReady(false)
     onStatusChange('executing')
 
-    const { sanitized: sanitizedCode, icons } = sanitizeCode(code)
-    const html = generateIframeHTML(sanitizedCode, icons)
+    const icons = collectLucideIconsFromFiles(project.files || [])
+    const html = generateIframeHTML(project, icons)
 
     iframe.srcdoc = html
 
@@ -136,7 +135,7 @@ export function CodePreviewPanel({
         timeoutRef.current = null
       }
     }
-  }, [activeTab, code, artifact.id, artifact.isStreaming, onStatusChange, onError])
+  }, [activeTab, artifact.id, artifact.isStreaming, artifact.project, onStatusChange, onError])
 
   const renderContent = () => {
     switch (activeTab) {
@@ -177,7 +176,7 @@ export function CodePreviewPanel({
                 </div>
               )}
               <pre className="text-xs text-foreground font-mono p-3 whitespace-pre-wrap break-words">
-                {code}
+                {JSON.stringify(artifact.project, null, 2)}
               </pre>
             </div>
           </div>

@@ -6,38 +6,12 @@
  * - 将用户组件代码转译并渲染到 #root
  * - 通过 postMessage 向父页面回传 ready/console/error 事件
  */
-export function generateIframeHTML(code: string, icons: string[] = []): string {
-  // 将用户代码包装进 iframe 的 srcdoc：隔离运行环境，避免影响主应用全局状态
-  const iconComponents
-    = icons.length > 0
-      ? `
-    ${icons
-      .map((iconName) => {
-        // 运行在 iframe 内：把 lucide 的 icon 定义转成 React 组件，供用户代码直接使用
-        return `const ${iconName} = ({ size = 24, color = 'currentColor', strokeWidth = 2, className = '', ...props }) => {
-      const iconDef = window.lucide?.icons?.['${iconName}'] || null;
-      if (!iconDef) {
-        throw new Error('Lucide icon not found: ${iconName}');
-      }
-      const svgNode = window.lucide.createElement(iconDef, {
-        width: size,
-        height: size,
-        stroke: color,
-        'stroke-width': strokeWidth,
-        class: 'lucide lucide-${iconName.toLowerCase()} ' + className
-      });
-      const svg = svgNode.outerHTML;
-      return React.createElement('span', {
-        ...props,
-        className: className,
-        dangerouslySetInnerHTML: { __html: svg }
-      });
-    };`
-      })
-      .join('\n    ')}
-  `
-      : ''
+import type { CanvasFile, CanvasProject } from './canvas-types'
 
+export function generateIframeHTML(project: CanvasProject, icons: string[] = []): string {
+  const iconList = Array.isArray(icons) ? icons : []
+  const projectJson = JSON.stringify(project)
+  const iconsJson = JSON.stringify(iconList)
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -62,9 +36,7 @@ export function generateIframeHTML(code: string, icons: string[] = []): string {
 <body>
   <div id="root"></div>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef, useMemo, useCallback } = React;
-
+  <script>
     const consoleMethods = ['log', 'info', 'warn', 'error'];
     const originalConsole = {};
     consoleMethods.forEach(method => {
@@ -114,37 +86,204 @@ export function generateIframeHTML(code: string, icons: string[] = []): string {
       }, '*');
     };
 
-    ${iconComponents}
+    const project = ${projectJson};
+    const icons = ${iconsJson};
 
-    try {
-      const originalCode = ${JSON.stringify(code)};
-      // 约定：用户必须 export default 一个组件；这里替换成全局变量，便于在 iframe 中取到并渲染
-      const userCode = originalCode.replace(/export default/g, 'window.UserComponent =');
+    function normalizePath(input) {
+      if (!input || typeof input !== 'string') return '';
+      const raw = input.replace(/\\\\/g, '/').trim();
+      const noPrefix = raw.startsWith('./') ? raw.slice(2) : raw;
+      const parts = noPrefix.split('/').filter(Boolean);
+      const stack = [];
+      for (const part of parts) {
+        if (part === '.') continue;
+        if (part === '..') {
+          stack.pop();
+          continue;
+        }
+        stack.push(part);
+      }
+      return stack.join('/');
+    }
 
-      if (!userCode.includes('window.UserComponent')) {
-        throw new Error('代码必须包含 \"export default\" 语句');
+    function inferLanguageByPath(path) {
+      const lower = String(path || '').toLowerCase();
+      if (lower.endsWith('.tsx')) return 'tsx';
+      if (lower.endsWith('.ts')) return 'ts';
+      if (lower.endsWith('.jsx')) return 'jsx';
+      if (lower.endsWith('.js')) return 'js';
+      if (lower.endsWith('.css')) return 'css';
+      if (lower.endsWith('.json')) return 'json';
+      if (lower.endsWith('.txt')) return 'txt';
+      return 'jsx';
+    }
+
+    function buildLucideReactExports(iconNames) {
+      const exportsObj = {};
+      for (const iconName of iconNames) {
+        exportsObj[iconName] = ({ size = 24, color = 'currentColor', strokeWidth = 2, className = '', ...props }) => {
+          const iconDef = window.lucide?.icons?.[iconName] || null;
+          if (!iconDef) {
+            throw new Error('Lucide icon not found: ' + iconName);
+          }
+          const svgNode = window.lucide.createElement(iconDef, {
+            width: size,
+            height: size,
+            stroke: color,
+            'stroke-width': strokeWidth,
+            class: 'lucide lucide-' + String(iconName).toLowerCase() + ' ' + className
+          });
+          const svg = svgNode.outerHTML;
+          return React.createElement('span', {
+            ...props,
+            className: className,
+            dangerouslySetInnerHTML: { __html: svg }
+          });
+        };
+      }
+      exportsObj.__esModule = true;
+      exportsObj.default = exportsObj;
+      return exportsObj;
+    }
+
+    function createReactExports() {
+      return {
+        __esModule: true,
+        default: React,
+        useState: React.useState,
+        useEffect: React.useEffect,
+        useRef: React.useRef,
+        useMemo: React.useMemo,
+        useCallback: React.useCallback,
+      };
+    }
+
+    function createReactDomClientExports() {
+      return {
+        __esModule: true,
+        createRoot: ReactDOM.createRoot,
+      };
+    }
+
+    const fileMap = new Map();
+    const rawFiles = Array.isArray(project?.files) ? project.files : [];
+    for (const file of rawFiles) {
+      const path = normalizePath(file?.path);
+      if (!path) continue;
+      const language = file?.language || inferLanguageByPath(path);
+      const content = typeof file?.content === 'string' ? file.content : '';
+      fileMap.set(path, { path, language, content });
+    }
+
+    const moduleCache = new Map();
+
+    function resolveModulePath(specifier, fromPath) {
+      const raw = String(specifier || '').trim();
+      if (!raw) return '';
+      if (!raw.startsWith('.')) return raw;
+
+      const fromDir = normalizePath(fromPath || '').split('/').slice(0, -1).join('/');
+      const combined = normalizePath((fromDir ? fromDir + '/' : '') + raw);
+      const candidates = [
+        combined,
+        combined + '.tsx',
+        combined + '.ts',
+        combined + '.jsx',
+        combined + '.js',
+        combined + '.css',
+        combined + '.json',
+        combined + '/index.tsx',
+        combined + '/index.ts',
+        combined + '/index.jsx',
+        combined + '/index.js',
+      ];
+      for (const c of candidates) {
+        if (fileMap.has(c)) return c;
+      }
+      return combined;
+    }
+
+    function requireModule(specifier, fromPath) {
+      const resolved = resolveModulePath(specifier, fromPath);
+      if (resolved === 'react') return createReactExports();
+      if (resolved === 'react-dom/client') return createReactDomClientExports();
+      if (resolved === 'lucide-react') return buildLucideReactExports(icons);
+
+      if (resolved.endsWith('.css')) {
+        const cssFile = fileMap.get(resolved);
+        const css = cssFile ? cssFile.content : '';
+        const style = document.createElement('style');
+        style.textContent = css;
+        document.head.appendChild(style);
+        return { __esModule: true, default: css };
       }
 
-      const transformedCode = Babel.transform(userCode, {
-        presets: ['react'],
-        filename: 'user-component.jsx'
+      if (resolved.endsWith('.json')) {
+        const jsonFile = fileMap.get(resolved);
+        const rawJson = jsonFile ? jsonFile.content : '';
+        try {
+          return { __esModule: true, default: JSON.parse(rawJson) };
+        } catch (e) {
+          throw new Error('JSON 解析失败: ' + resolved);
+        }
+      }
+
+      if (!fileMap.has(resolved)) {
+        throw new Error('未找到文件: ' + resolved);
+      }
+
+      if (moduleCache.has(resolved)) {
+        return moduleCache.get(resolved).exports;
+      }
+
+      const mod = { exports: {} };
+      moduleCache.set(resolved, mod);
+
+      const source = fileMap.get(resolved).content;
+      const lowerResolved = String(resolved || '').toLowerCase();
+      const presets = lowerResolved.endsWith('.tsx')
+        ? ['react', 'typescript']
+        : lowerResolved.endsWith('.ts')
+          ? ['typescript']
+          : ['react'];
+      const transformed = Babel.transform(source, {
+        presets,
+        plugins: ['transform-modules-commonjs'],
+        filename: resolved,
       }).code;
 
-      eval(transformedCode);
+      const fn = new Function('require', 'module', 'exports', transformed);
+      fn((s) => requireModule(s, resolved), mod, mod.exports);
+      return mod.exports;
+    }
 
-      if (typeof window.UserComponent !== 'function') {
-        throw new Error('UserComponent 未能正确定义');
+    function findFallbackEntry() {
+      if (fileMap.has('src/App.tsx')) return 'src/App.tsx';
+      if (fileMap.has('src/App.ts')) return 'src/App.ts';
+      if (fileMap.has('src/App.jsx')) return 'src/App.jsx';
+      if (fileMap.has('src/App.js')) return 'src/App.js';
+      if (fileMap.size > 0) return Array.from(fileMap.keys())[0];
+      return '';
+    }
+
+    try {
+      const entryPath = normalizePath(project?.entryPath) || findFallbackEntry();
+      if (!entryPath) {
+        throw new Error('缺少 entryPath，且无法推断入口文件');
+      }
+      const entryExports = requireModule(entryPath, '');
+      const Component = entryExports?.default || entryExports;
+      if (typeof Component !== 'function') {
+        throw new Error('入口文件未导出默认 React 组件: ' + entryPath);
       }
 
       const WrappedComponent = () => {
-        useEffect(() => {
-          // 用于标记“首屏渲染完成”，让父页面关闭 loading 蒙层
+        React.useEffect(() => {
           setTimeout(() => {
             window.parent.postMessage({ type: 'canvas:ready' }, '*');
           }, 100);
         }, []);
-
-        return React.createElement(window.UserComponent);
+        return React.createElement(Component);
       };
 
       const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -162,37 +301,25 @@ export function generateIframeHTML(code: string, icons: string[] = []): string {
 }
 
 /**
- * 清理并提取预览所需信息
- *
- * 设计目的：
- * - iframe 内会自行注入 React 与 Lucide，因此移除用户代码中的对应 import
- * - 提取 lucide-react 的图标名称列表，便于仅注入用到的图标桥接组件
+ * 提取 lucide-react 的图标名称列表
  */
-export function sanitizeCode(code: string): { sanitized: string, icons: string[] } {
-  // 预览 iframe 会自己注入 React / Tailwind / Lucide，因此需要移除用户代码中的对应 import
-  const icons: string[] = []
-  let sanitized = code
-
-  const lucideImportMatch = sanitized.match(
-    /import\s*\{([^}]+)\}\s+from\s+['"]lucide-react['"];?/,
-  )
-  if (lucideImportMatch) {
-    // 收集用户实际引用过的图标名称，仅为这些图标生成桥接组件，避免注入无用代码
+export function collectLucideIconsFromFiles(files: CanvasFile[]): string[] {
+  const iconSet = new Set<string>()
+  for (const file of files) {
+    if (!file || typeof file.content !== 'string')
+      continue
+    const lucideImportMatch = file.content.match(
+      /import\s*\{([^}]+)\}\s+from\s+['"]lucide-react['"];?/,
+    )
+    if (!lucideImportMatch)
+      continue
     const importedIcons = lucideImportMatch[1]
       .split(',')
       .map(s => s.trim())
       .filter(s => s.length > 0)
-    icons.push(...importedIcons)
+    for (const icon of importedIcons) {
+      iconSet.add(icon)
+    }
   }
-
-  sanitized = sanitized.replace(
-    /import\s+React\s*(?:,\s*)?\{[^}]*\}\s+from\s+['"]react['"];\s*/g,
-    '',
-  )
-  sanitized = sanitized.replace(
-    /import\s*\{[^}]*\}\s+from\s+['"]lucide-react['"];\s*/g,
-    '',
-  )
-
-  return { sanitized, icons }
+  return Array.from(iconSet)
 }
