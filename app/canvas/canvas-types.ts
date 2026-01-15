@@ -13,9 +13,8 @@ export type CanvasType = 'react' | 'component'
 
 /**
  * 代码语言（语法高亮）
- * 当前版本仅支持 JSX
  */
-export type CanvasLanguage = 'jsx'
+export type CanvasLanguage = 'jsx' | 'js' | 'ts' | 'tsx' | 'css' | 'json' | 'txt'
 
 /**
  * Artifact 状态
@@ -31,12 +30,15 @@ export interface CanvasConfig {
   theme?: 'light' | 'dark'
 }
 
-/**
- * Artifact 代码信息
- */
-export interface CanvasCode {
+export interface CanvasFile {
+  path: string
   language: CanvasLanguage
   content: string
+}
+
+export interface CanvasProject {
+  entryPath: string
+  files: CanvasFile[]
 }
 
 /**
@@ -48,8 +50,7 @@ export interface CanvasArtifact {
   type: CanvasType
   title: string
 
-  // 代码信息
-  code: CanvasCode
+  project: CanvasProject
 
   // 配置（可选）
   config?: CanvasConfig
@@ -86,7 +87,8 @@ export interface ParserState {
 
   // 嵌套状态标志
   insideArtifact: boolean
-  insideCode: boolean
+  insideFiles: boolean
+  insideFile: boolean
   insideConfig: boolean
 
   // 当前正在构建的 artifact
@@ -96,8 +98,13 @@ export interface ParserState {
     title: string
   } | null
 
-  // 当前正在累积的代码
-  currentCode: {
+  currentFiles: {
+    entryPath: string
+    files: CanvasFile[]
+  } | null
+
+  currentFile: {
+    path: string
     language: CanvasLanguage
     content: string
     startPosition: number
@@ -127,16 +134,16 @@ export interface ParserCallbacks {
     messageId: string
   }) => void
 
-  // 代码流式更新（代码内容累积时，实时触发）
-  onCodeUpdate?: (data: {
+  onFileUpdate?: (data: {
     messageId: string
     artifactId: string
+    path: string
     language: CanvasLanguage
-    content: string // 当前累积的代码
+    content: string
   }) => void
 
-  // 代码完成（检测到 </canvasCode>）
-  onCodeComplete?: (code: {
+  onFileComplete?: (file: {
+    path: string
     language: CanvasLanguage
     content: string
   }) => void
@@ -146,7 +153,7 @@ export interface ParserCallbacks {
     id: string
     type: CanvasType
     title: string
-    code: CanvasCode
+    project: CanvasProject
     config?: Record<string, unknown>
     messageId: string
   }) => void

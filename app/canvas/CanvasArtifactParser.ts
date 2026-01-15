@@ -13,10 +13,12 @@ import type { CanvasLanguage, CanvasType, ParserCallbacks, ParserState } from '.
 import {
   ARTIFACT_TAG_CLOSE,
   ARTIFACT_TAG_OPEN,
-  CODE_TAG_CLOSE,
-  CODE_TAG_OPEN,
   CONFIG_TAG_CLOSE,
   CONFIG_TAG_OPEN,
+  FILE_TAG_CLOSE,
+  FILE_TAG_OPEN,
+  FILES_TAG_CLOSE,
+  FILES_TAG_OPEN,
   parseAttributes,
   unescapeXML,
 } from './canvas-parser-constants'
@@ -48,10 +50,12 @@ export class CanvasArtifactParser {
       this.state.set(messageId, {
         position: 0,
         insideArtifact: false,
-        insideCode: false,
+        insideFiles: false,
+        insideFile: false,
         insideConfig: false,
         currentArtifact: null,
-        currentCode: null,
+        currentFiles: null,
+        currentFile: null,
         currentConfig: null,
         fullContent: '',
         messageId,
@@ -165,36 +169,68 @@ export class CanvasArtifactParser {
   }
 
   /**
-   * 解析 canvasCode 开始标签
+   * 解析 canvasFiles 开始标签
    */
-  private parseCodeStart(
+  private parseFilesStart(
     content: string,
     startPos: number,
   ): {
     success: boolean
     endPos: number
+    tagStart?: number
+    incomplete?: boolean
+    entryPath?: string
+  } {
+    const tagStart = this.findTagIndex(content, startPos, FILES_TAG_OPEN)
+    if (tagStart === -1) {
+      return { success: false, endPos: startPos }
+    }
+
+    const tagEnd = this.findTagEnd(content, tagStart + FILES_TAG_OPEN.length)
+    if (tagEnd === -1) {
+      return { success: false, endPos: tagStart, tagStart, incomplete: true }
+    }
+
+    const attrString = content.slice(tagStart + FILES_TAG_OPEN.length, tagEnd)
+    const attributes = parseAttributes(attrString)
+    const entryPath = typeof attributes.entry === 'string' ? attributes.entry : ''
+    return { success: true, endPos: tagEnd + 1, entryPath }
+  }
+
+  /**
+   * 解析 canvasFile 开始标签
+   */
+  private parseFileStart(
+    content: string,
+    startPos: number,
+  ): {
+    success: boolean
+    endPos: number
+    path: string
     language: CanvasLanguage
     tagStart?: number
     incomplete?: boolean
   } {
-    const tagStart = this.findTagIndex(content, startPos, CODE_TAG_OPEN)
+    const tagStart = this.findTagIndex(content, startPos, FILE_TAG_OPEN)
     if (tagStart === -1) {
-      return { success: false, endPos: startPos, language: 'jsx' }
+      return { success: false, endPos: startPos, path: '', language: 'jsx' }
     }
 
-    const tagEnd = this.findTagEnd(content, tagStart + CODE_TAG_OPEN.length)
+    const tagEnd = this.findTagEnd(content, tagStart + FILE_TAG_OPEN.length)
     if (tagEnd === -1) {
-      return { success: false, endPos: tagStart, language: 'jsx', tagStart, incomplete: true }
+      return { success: false, endPos: tagStart, path: '', language: 'jsx', tagStart, incomplete: true }
     }
 
-    // 提取 language 属性
-    const attrString = content.slice(tagStart + CODE_TAG_OPEN.length, tagEnd)
+    const attrString = content.slice(tagStart + FILE_TAG_OPEN.length, tagEnd)
     const attributes = parseAttributes(attrString)
+    const path = typeof attributes.path === 'string' ? attributes.path : ''
+    const language = (typeof attributes.language === 'string' ? attributes.language : 'jsx') as CanvasLanguage
 
-    // 默认使用 jsx
-    const language = (attributes.language || 'jsx') as CanvasLanguage
+    if (!path) {
+      return { success: false, endPos: tagEnd + 1, path: '', language }
+    }
 
-    return { success: true, endPos: tagEnd + 1, language }
+    return { success: true, endPos: tagEnd + 1, path, language }
   }
 
   /**
@@ -247,22 +283,20 @@ export class CanvasArtifactParser {
         continue
       }
 
-      // 状态 2: 在 artifact 内，查找 code 或 config 标签
-      if (state.insideArtifact && !state.insideCode && !state.insideConfig) {
-        // 优先检查 canvasCode
-        const codeResult = this.parseCodeStart(content, pos)
-        if (codeResult.incomplete) {
-          pos = codeResult.tagStart ?? pos
+      // 状态 2: 在 artifact 内，查找 files 或 config 标签
+      if (state.insideArtifact && !state.insideFiles && !state.insideConfig) {
+        const filesResult = this.parseFilesStart(content, pos)
+        if (filesResult.incomplete) {
+          pos = filesResult.tagStart ?? pos
           break
         }
-        if (codeResult.success) {
-          state.currentCode = {
-            language: codeResult.language || 'jsx',
-            content: '',
-            startPosition: codeResult.endPos,
+        if (filesResult.success) {
+          state.currentFiles = {
+            entryPath: filesResult.entryPath || '',
+            files: [],
           }
-          state.insideCode = true
-          pos = codeResult.endPos
+          state.insideFiles = true
+          pos = filesResult.endPos
           continue
         }
 
@@ -286,7 +320,7 @@ export class CanvasArtifactParser {
 
         // 没有找到任何预期的标签，检查是否有部分标签
         const partialStarts = [
-          this.getPartialTagStart(content, 0, CODE_TAG_OPEN),
+          this.getPartialTagStart(content, 0, FILES_TAG_OPEN),
           this.getPartialTagStart(content, 0, CONFIG_TAG_OPEN),
           this.getPartialTagStart(content, 0, ARTIFACT_TAG_CLOSE),
         ].filter(value => value !== -1) as number[]
@@ -300,68 +334,101 @@ export class CanvasArtifactParser {
         break
       }
 
-      // 状态 3: 在 code 内，累积代码内容
-      if (state.insideCode) {
-        const codeEnd = this.findTagIndex(content, pos, CODE_TAG_CLOSE)
-        if (codeEnd === -1) {
-          // 还没找到结束标签，累积内容
-          if (state.currentCode && state.currentArtifact) {
+      // 状态 3: 在 files 内，查找 file 或 files 结束标签
+      if (state.insideFiles && !state.insideFile) {
+        const fileResult = this.parseFileStart(content, pos)
+        if (fileResult.incomplete) {
+          pos = fileResult.tagStart ?? pos
+          break
+        }
+        if (fileResult.success) {
+          state.currentFile = {
+            path: fileResult.path,
+            language: fileResult.language,
+            content: '',
+            startPosition: fileResult.endPos,
+          }
+          state.insideFile = true
+          pos = fileResult.endPos
+          continue
+        }
+
+        const filesEnd = this.findTagIndex(content, pos, FILES_TAG_CLOSE)
+        if (filesEnd !== -1) {
+          state.insideFiles = false
+          pos = filesEnd + FILES_TAG_CLOSE.length
+          continue
+        }
+
+        const partialStarts = [
+          this.getPartialTagStart(content, 0, FILE_TAG_OPEN),
+          this.getPartialTagStart(content, 0, FILES_TAG_CLOSE),
+          this.getPartialTagStart(content, 0, ARTIFACT_TAG_CLOSE),
+        ].filter(value => value !== -1) as number[]
+
+        if (partialStarts.length > 0) {
+          pos = Math.min(...partialStarts)
+        }
+        else {
+          pos = content.length
+        }
+        break
+      }
+
+      // 状态 4: 在 file 内，累积文件内容
+      if (state.insideFile) {
+        const fileEnd = this.findTagIndex(content, pos, FILE_TAG_CLOSE)
+        if (fileEnd === -1) {
+          if (state.currentFile && state.currentArtifact) {
             const partialCloseStart = this.getPartialTagStart(
               content,
-              state.currentCode.startPosition,
-              CODE_TAG_CLOSE,
+              state.currentFile.startPosition,
+              FILE_TAG_CLOSE,
             )
             const currentContent = content.slice(
-              state.currentCode.startPosition,
+              state.currentFile.startPosition,
               partialCloseStart !== -1 ? partialCloseStart : content.length,
             )
-            state.currentCode.content = currentContent
-
-            // 🔥 代码流式更新：让 UI 能在 AI 逐字输出时即时渲染/展示
-            this.callbacks.onCodeUpdate?.({
+            state.currentFile.content = currentContent
+            this.callbacks.onFileUpdate?.({
               messageId,
               artifactId: state.currentArtifact.id,
-              language: state.currentCode.language,
+              path: state.currentFile.path,
+              language: state.currentFile.language,
               content: unescapeXML(currentContent),
             })
           }
           const partialCloseStart = this.getPartialTagStart(
             content,
-            state.currentCode?.startPosition ?? 0,
-            CODE_TAG_CLOSE,
+            state.currentFile?.startPosition ?? 0,
+            FILE_TAG_CLOSE,
           )
           pos = partialCloseStart !== -1 ? partialCloseStart : content.length
           break
         }
 
-        // 找到结束标签
-        if (state.currentCode) {
-          const codeContent = content.slice(
-            state.currentCode.startPosition,
-            codeEnd,
+        if (state.currentFile) {
+          const fileContent = content.slice(
+            state.currentFile.startPosition,
+            fileEnd,
           )
-          state.currentCode.content = unescapeXML(codeContent)
+          const completedFile = {
+            path: state.currentFile.path,
+            language: state.currentFile.language,
+            content: unescapeXML(fileContent),
+          }
 
-          this.callbacks.onCodeComplete?.({
-            language: state.currentCode.language,
-            content: state.currentCode.content,
-          })
+          state.currentFiles?.files.push(completedFile)
+          this.callbacks.onFileComplete?.(completedFile)
         }
 
-        state.insideCode = false
-        pos = codeEnd + CODE_TAG_CLOSE.length
-
-        // 跳过空白字符，检查后面是否有 artifact 结束标签
-        const nextPos = pos + content.slice(pos).search(/\S/)
-        const artifactEnd = this.findTagIndex(content, nextPos, ARTIFACT_TAG_CLOSE)
-        if (artifactEnd !== -1) {
-          this.completeArtifact(messageId, state)
-          pos = artifactEnd + ARTIFACT_TAG_CLOSE.length
-        }
+        state.insideFile = false
+        state.currentFile = null
+        pos = fileEnd + FILE_TAG_CLOSE.length
         continue
       }
 
-      // 状态 4: 在 config 内，累积配置内容
+      // 状态 5: 在 config 内，累积配置内容
       if (state.insideConfig) {
         const configEnd = this.findTagIndex(content, pos, CONFIG_TAG_CLOSE)
         if (configEnd === -1) {
@@ -416,9 +483,9 @@ export class CanvasArtifactParser {
       id: state.currentArtifact.id,
       type: state.currentArtifact.type,
       title: state.currentArtifact.title,
-      code: {
-        language: state.currentCode?.language || 'jsx',
-        content: state.currentCode?.content || '',
+      project: {
+        entryPath: state.currentFiles?.entryPath || '',
+        files: state.currentFiles?.files || [],
       },
       config,
       messageId,
@@ -426,10 +493,12 @@ export class CanvasArtifactParser {
 
     // 重置状态
     state.insideArtifact = false
-    state.insideCode = false
+    state.insideFiles = false
+    state.insideFile = false
     state.insideConfig = false
     state.currentArtifact = null
-    state.currentCode = null
+    state.currentFiles = null
+    state.currentFile = null
     state.currentConfig = null
   }
 

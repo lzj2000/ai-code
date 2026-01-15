@@ -16,8 +16,8 @@ import { CanvasArtifactPanel } from './CanvasArtifactPanel'
 interface CanvasDockProps {
   /** 当前会话下的所有 artifacts */
   artifacts: CanvasArtifact[]
-  /** 当前聚焦的 artifact id（由消息卡片触发） */
-  activeArtifactId: string | null
+  /** 当前聚焦的 artifact key（由消息卡片触发，避免跨消息 id 冲突） */
+  activeArtifactKey: string | null
   /** 侧栏是否展开 */
   isOpen: boolean
   /** 切换展开/收起 */
@@ -29,7 +29,7 @@ interface CanvasDockProps {
  */
 export function CanvasDock({
   artifacts,
-  activeArtifactId,
+  activeArtifactKey,
   isOpen,
   onToggleOpen,
 }: CanvasDockProps) {
@@ -118,11 +118,15 @@ export function CanvasDock({
     finalizeResize()
   }, [finalizeResize])
 
+  const getArtifactKey = useCallback((artifact: CanvasArtifact) => {
+    return `${artifact.sessionId}:${artifact.messageId}:${artifact.id}`
+  }, [])
+
   const activeArtifact = useMemo(() => {
-    if (!activeArtifactId)
+    if (!activeArtifactKey)
       return null
-    return artifacts.find(a => a.id === activeArtifactId) || null
-  }, [activeArtifactId, artifacts])
+    return artifacts.find(a => getArtifactKey(a) === activeArtifactKey) || null
+  }, [activeArtifactKey, artifacts, getArtifactKey])
 
   return (
     <div

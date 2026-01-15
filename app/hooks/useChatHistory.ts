@@ -147,7 +147,7 @@ export function useChatHistory(
                 id: metadata.id,
                 type: metadata.type,
                 title: metadata.title,
-                code: { language: 'jsx', content: '' },
+                project: { entryPath: '', files: [] },
                 status: 'creating',
                 isStreaming: true,
                 messageId,
@@ -163,13 +163,21 @@ export function useChatHistory(
                 updatedAt: now,
               })
             },
-            onCodeUpdate: (data) => {
+            onFileUpdate: (data) => {
               const existing = artifactsById.get(data.artifactId)
               if (!existing)
                 return
+              const existingFiles = existing.project.files
+              const idx = existingFiles.findIndex(f => f.path === data.path)
+              const nextFiles = [...existingFiles]
+              const nextFile = { path: data.path, language: data.language, content: data.content }
+              if (idx === -1)
+                nextFiles.push(nextFile)
+              else
+                nextFiles[idx] = nextFile
               artifactsById.set(data.artifactId, {
                 ...existing,
-                code: { language: data.language, content: data.content },
+                project: { ...existing.project, files: nextFiles },
                 status: 'streaming',
                 isStreaming: true,
                 updatedAt: now,
@@ -181,7 +189,7 @@ export function useChatHistory(
                 id: artifact.id,
                 type: artifact.type,
                 title: artifact.title,
-                code: artifact.code,
+                project: artifact.project,
                 config: artifact.config,
                 status: 'creating',
                 isStreaming: true,
@@ -195,7 +203,7 @@ export function useChatHistory(
                 ...base,
                 type: artifact.type,
                 title: artifact.title,
-                code: artifact.code,
+                project: artifact.project,
                 config: artifact.config,
                 status: 'ready',
                 isStreaming: false,
