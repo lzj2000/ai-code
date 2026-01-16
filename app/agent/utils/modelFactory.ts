@@ -9,6 +9,7 @@ export interface ModelConfig {
   provider?: ModelProvider
   modelName: string
   baseUrl?: string
+  apiKeyEnv?: 'OPENAI_API_KEY' | 'QWEN_API_KEY' | 'GOOGLE_API_KEY'
 }
 
 const defaultModelConfig: ModelConfig = {
@@ -28,11 +29,13 @@ export function createModel(config?: ModelConfig): BaseChatModel {
   let provider = config.provider
   let realModelName = config.modelName
   let baseUrl = config.baseUrl
+  let apiKeyEnv = config.apiKeyEnv
 
   // 如果是预定义模型，使用预定义的配置
   if (predefinedModel) {
     provider = predefinedModel.provider
     baseUrl = predefinedModel.baseUrl
+    apiKeyEnv = predefinedModel.apiKeyEnv
     // 移除前缀 (google: 或 openai:)
     const parts = predefinedModel.id.split(':')
     if (parts.length > 1) {
@@ -67,9 +70,13 @@ export function createModel(config?: ModelConfig): BaseChatModel {
       // 如果没有指定 baseUrl，且是 qwen/deepseek 等兼容模型，通常需要指定
       // 这里如果 predefinedModel 存在，已经获取了 baseUrl
 
+      const apiKey = apiKeyEnv
+        ? (process.env[apiKeyEnv] || '')
+        : (process.env.OPENAI_API_KEY || '')
+
       model = new ChatOpenAI({
         model: realModelName || 'gpt-3.5-turbo',
-        apiKey: process.env.OPENAI_API_KEY || '',
+        apiKey,
         configuration: baseUrl
           ? {
               baseURL: baseUrl,

@@ -319,4 +319,6 @@ const Sidebar = forwardRef((
   )
 })
 
+Sidebar.displayName = 'Sidebar'
+
 export default Sidebar

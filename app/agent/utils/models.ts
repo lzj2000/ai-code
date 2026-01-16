@@ -5,6 +5,8 @@ export interface ModelOption {
   provider: 'google' | 'openai'
   // 某些 OpenAI 兼容模型需要特定的 Base URL
   baseUrl?: string
+  // 可选：指定使用哪个环境变量读取 API Key
+  apiKeyEnv?: 'OPENAI_API_KEY' | 'QWEN_API_KEY' | 'GOOGLE_API_KEY'
 }
 
 export const AVAILABLE_MODELS: ModelOption[] = [
@@ -47,6 +49,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     description: '最新 Qwen3 旗舰模型，超强推理能力',
     provider: 'openai',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKeyEnv: 'QWEN_API_KEY',
   },
   {
     id: 'openai:qwen-plus',
@@ -54,6 +57,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     description: '平衡性能与成本的高性能模型',
     provider: 'openai',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKeyEnv: 'QWEN_API_KEY',
   },
   {
     id: 'openai:qwen-flash',
@@ -61,6 +65,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     description: '快速响应，高性价比',
     provider: 'openai',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKeyEnv: 'QWEN_API_KEY',
   },
   {
     id: 'openai:qwen3-vl-plus',
@@ -68,6 +73,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     description: '多模态视觉语言模型，支持图文理解',
     provider: 'openai',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKeyEnv: 'QWEN_API_KEY',
   },
 
   // DeepSeek 模型（OpenAI 兼容模式）
@@ -76,7 +82,8 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     name: 'DeepSeek V3.2',
     description: 'DeepSeek 最新模型，强大的推理能力',
     provider: 'openai',
-    baseUrl: 'https://api.deepseek.com',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKeyEnv: 'QWEN_API_KEY',
   },
 ]
 
