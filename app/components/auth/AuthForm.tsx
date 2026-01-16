@@ -17,6 +17,13 @@ export default function AuthForm() {
 
   const { login, register } = useAuth()
 
+  const handleGitHubLogin = () => {
+    if (typeof window === 'undefined')
+      return
+
+    window.location.assign('/api/auth/oauth/github?next=/')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -181,6 +188,14 @@ export default function AuthForm() {
             <span className="bg-white dark:bg-zinc-900 px-2 text-zinc-500">或者</span>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={handleGitHubLogin}
+          className="w-full py-3.5 text-sm font-semibold text-zinc-900 bg-white dark:bg-zinc-900 dark:text-zinc-50 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 transition-all duration-200 active:scale-[0.98]"
+        >
+          使用 GitHub 登录
+        </button>
 
         <div className="text-center">
           <button

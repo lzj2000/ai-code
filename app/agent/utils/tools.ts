@@ -41,15 +41,15 @@ export async function preloadLangChainTools(): Promise<void> {
 
       try {
         // 动态导入模块
-        const module = await import(/* webpackIgnore: true */ importPath)
+        const importedModule = await import(/* webpackIgnore: true */ importPath)
 
         // 获取工具类（支持 className 或默认导出）
         let ToolClass
         if (className) {
-          ToolClass = module[className]
+          ToolClass = importedModule[className]
         }
         else {
-          ToolClass = module.default || Object.values(module).find((v: any) => typeof v === 'function')
+          ToolClass = importedModule.default || Object.values(importedModule).find((v: any) => typeof v === 'function')
         }
 
         if (!ToolClass) {

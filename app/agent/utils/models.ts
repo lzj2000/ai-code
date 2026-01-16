@@ -76,7 +76,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     name: 'DeepSeek V3.2',
     description: 'DeepSeek 最新模型，强大的推理能力',
     provider: 'openai',
-    baseUrl: 'https://api.deepseek.com',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   },
 ]
 

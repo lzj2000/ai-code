@@ -1,9 +1,20 @@
-// @ts-check
-import antfu from '@antfu/eslint-config'
+import nextCoreWebVitals from 'eslint-config-next/core-web-vitals'
+import nextTypescript from 'eslint-config-next/typescript'
 
-export default antfu({
-  ignores: [],
-  rules: {
-    'node/prefer-global/process': 'off',
+export default [
+  {
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+    ],
   },
-})
+  ...nextCoreWebVitals,
+  ...nextTypescript,
+  {
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'import/no-anonymous-default-export': 'off',
+    },
+  },
+]
