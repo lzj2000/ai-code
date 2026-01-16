@@ -182,14 +182,18 @@ export default function ChatPage() {
                     ? (
                         <div className="flex h-full min-h-[60vh] flex-col items-center justify-center">
                           <h2 className="mb-2 text-lg font-medium text-foreground">
-                            有什么可以帮你？
+                            让我们从一个高质量的 Artifact 开始
                           </h2>
                           <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
-                            我是你的AI助手，可以回答问题、提供建议或帮你完成各种任务
+                            说明目标、受众、输出格式与约束条件，我会据此生成可直接使用的产物与迭代版本。
                           </p>
                           {/* 快捷提示 */}
                           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                            {['写一首诗', '解释代码', '头脑风暴'].map((text, index) => (
+                            {[
+                              '生成产品路线图：季度目标、里程碑、风险',
+                              '输出一份高端市场分析：结构化摘要+可视化建议',
+                              '把需求转成交付清单：范围、验收标准、时间线',
+                            ].map((text, index) => (
                               <button
                                 key={index}
                                 onClick={() => sendMessage(text)}
