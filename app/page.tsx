@@ -93,7 +93,7 @@ export default function ChatPage() {
 
   // ==================== 消息发送 ====================
   // 使用 useSendMessage hook 处理消息发送逻辑
-  const { sendMessage } = useSendMessage({
+  const { sendMessage, stopGenerating } = useSendMessage({
     sessionId,
     setIsLoading,
     addUserMessage,
@@ -107,6 +107,20 @@ export default function ChatPage() {
     updateToolError,
     modelId: selectedModelId,
   })
+
+  const handleSelectSession = (id: string) => {
+    stopGenerating()
+    selectSession(id)
+  }
+
+  const handleCreateNewSession = (id: string) => {
+    stopGenerating()
+    createNewSession(id)
+  }
+
+  useEffect(() => {
+    stopGenerating()
+  }, [sessionId, stopGenerating])
 
   // ==================== 工具配置 ====================
   // 将后端工具配置转换为前端 Tool 格式
@@ -157,8 +171,8 @@ export default function ChatPage() {
           onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           ref={sidebarRef}
           currentSessionId={sessionId}
-          onSelect={selectSession}
-          onNew={createNewSession}
+          onSelect={handleSelectSession}
+          onNew={handleCreateNewSession}
         />
 
         {/* 主聊天区域 */}
@@ -251,6 +265,7 @@ export default function ChatPage() {
               <ChatInput
                 availableTools={availableTools}
                 onSendMessage={sendMessage}
+                onStopGenerating={stopGenerating}
                 isLoading={isLoading}
                 selectedModelId={selectedModelId}
                 onModelChange={handleModelChange}

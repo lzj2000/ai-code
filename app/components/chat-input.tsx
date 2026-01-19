@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import type { Tool } from './tool-selector'
-import { ImageIcon, Send, X } from 'lucide-react'
+import { Circle, ImageIcon, Send, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { ModelSelector } from './model-selector'
 import { ToolBadge } from './tool-badge'
@@ -10,6 +10,7 @@ import { ToolSelector } from './tool-selector'
 
 interface ChatInputProps {
   onSendMessage: (message: string, selectedTools?: string[], images?: File[]) => void
+  onStopGenerating: () => void
   isLoading: boolean
   availableTools?: Tool[]
   selectedModelId: string
@@ -18,6 +19,7 @@ interface ChatInputProps {
 
 export default function ChatInput({
   onSendMessage,
+  onStopGenerating,
   isLoading,
   availableTools = [],
   selectedModelId,
@@ -208,13 +210,29 @@ export default function ChatInput({
                 {' '}
                 发送
               </span>
-              <button
-                type="submit"
-                disabled={(!input.trim() && selectedImages.length === 0) || isLoading}
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow transition-all hover:bg-primary/90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Send className="h-4 w-4" />
-              </button>
+              {isLoading
+                ? (
+                    <button
+                      type="button"
+                      onClick={onStopGenerating}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground shadow-sm transition-all hover:bg-accent hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      aria-label="终止对话"
+                      title="终止对话"
+                    >
+                      <Circle className="h-4 w-4 stroke-2" />
+                    </button>
+                  )
+                : (
+                    <button
+                      type="submit"
+                      disabled={!input.trim() && selectedImages.length === 0}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow transition-all hover:bg-primary/90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="发送"
+                      title="发送"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  )}
             </div>
           </div>
         </div>
