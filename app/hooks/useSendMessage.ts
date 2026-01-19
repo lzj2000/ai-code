@@ -1,5 +1,5 @@
 import type { Message, ToolCall } from '../page'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 /**
  * 消息发送 Hook 的参数接口
@@ -33,8 +33,47 @@ export function useSendMessage({
   updateToolError,
   modelId,
 }: UseSendMessageParams) {
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const currentRequestIdRef = useRef<number | null>(null)
+  const requestSeqRef = useRef(0)
+  const activeAssistantMessageIdRef = useRef<string | null>(null)
+
+  const isAbortError = (error: unknown) => {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return true
+    }
+    if (error && typeof error === 'object' && 'name' in error) {
+      return (error as { name?: unknown }).name === 'AbortError'
+    }
+    return false
+  }
+
+  const stopGenerating = useCallback(() => {
+    const controller = abortControllerRef.current
+    if (controller && !controller.signal.aborted) {
+      controller.abort()
+    }
+
+    abortControllerRef.current = null
+    currentRequestIdRef.current = null
+    setIsLoading(false)
+
+    const assistantMessageId = activeAssistantMessageIdRef.current
+    if (assistantMessageId) {
+      finishStreaming(assistantMessageId)
+    }
+    activeAssistantMessageIdRef.current = null
+  }, [finishStreaming, setIsLoading])
+
   const sendMessage = useCallback(
     async (input: string, selectedTools?: string[], images?: File[]) => {
+      stopGenerating()
+
+      const requestId = ++requestSeqRef.current
+      currentRequestIdRef.current = requestId
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+
       setIsLoading(true)
 
       try {
@@ -86,6 +125,7 @@ export function useSendMessage({
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: abortController.signal,
           body: JSON.stringify({
             message: messageContent, // 发送文本或多模态内容
             thread_id: sessionId,
@@ -103,6 +143,9 @@ export function useSendMessage({
 
         // 5. 创建 AI 消息占位符
         const assistantMessage = addAssistantMessage()
+        if (assistantMessage.id) {
+          activeAssistantMessageIdRef.current = assistantMessage.id
+        }
 
         // 6. 处理流式响应
         const reader = response.body?.getReader()
@@ -112,9 +155,15 @@ export function useSendMessage({
 
         const decoder = new TextDecoder()
         let buffer = '' // 缓冲区,处理跨块的 JSON
+        let shouldStop = false
 
         // 7. 逐块读取响应流
-        while (true) {
+        while (!shouldStop) {
+          if (currentRequestIdRef.current !== requestId) {
+            shouldStop = true
+            break
+          }
+
           const { done, value } = await reader.read()
           if (done)
             break
@@ -128,6 +177,11 @@ export function useSendMessage({
 
           // 处理每一行
           for (const line of lines) {
+            if (currentRequestIdRef.current !== requestId) {
+              shouldStop = true
+              break
+            }
+
             if (line.trim()) {
               try {
                 const data = JSON.parse(line)
@@ -158,6 +212,7 @@ export function useSendMessage({
                     updateToolCalls(assistantMessage.id!, data.message.tool_calls)
                   }
                   finishStreaming(assistantMessage.id!)
+                  shouldStop = true
                   break
                 }
                 // 服务器错误
@@ -177,13 +232,26 @@ export function useSendMessage({
         }
       }
       catch (error) {
+        if (isAbortError(error)) {
+          const assistantMessageId = activeAssistantMessageIdRef.current
+          if (assistantMessageId) {
+            finishStreaming(assistantMessageId)
+          }
+          return
+        }
+
         console.error('发送消息失败:', error)
         // 8. 错误处理
         addErrorMessage()
       }
       finally {
         // 9. 清理加载状态
-        setIsLoading(false)
+        if (currentRequestIdRef.current === requestId) {
+          setIsLoading(false)
+          abortControllerRef.current = null
+          currentRequestIdRef.current = null
+          activeAssistantMessageIdRef.current = null
+        }
       }
     },
     [
@@ -194,12 +262,14 @@ export function useSendMessage({
       updateMessageContent,
       finishStreaming,
       addErrorMessage,
+      updateSessionName,
       updateToolCalls,
       updateToolResult,
       updateToolError,
       modelId,
+      stopGenerating,
     ],
   )
 
-  return { sendMessage }
+  return { sendMessage, stopGenerating }
 }
