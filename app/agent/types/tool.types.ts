@@ -11,7 +11,7 @@ export interface ToolConfig<T = Record<string, unknown>> {
 }
 
 // 工具类型
-export type ToolType = 'custom' | 'langchain' | 'mcp'
+export type ToolType = 'custom' | 'langchain' | 'mcp' | 'canvas'
 
 // LangChain 预构建工具配置
 export interface LangChainToolConfig {
