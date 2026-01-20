@@ -32,7 +32,7 @@ export async function preloadLangChainTools(): Promise<void> {
   )
 
   if (langChainToolConfigs.length === 0) {
-    // eslint-disable-next-line no-console
+     
     console.log('[预加载] 没有 LangChain 预构建工具需要加载')
   }
   else {
@@ -210,8 +210,8 @@ export async function createLangChainTools(
       continue
     }
 
-    if (toolConfig.type === 'mcp') {
-      continue // MCP 工具统一处理
+    if (toolConfig.type === 'mcp' || toolConfig.type === 'canvas') {
+      continue // MCP 和 Canvas 工具统一处理
     }
 
     if (toolConfig.langChainTool) {
@@ -243,6 +243,22 @@ export async function createLangChainTools(
 
   return tools
 }
+
+export const getToolUsagePrompt = () => `## 工具调用规范
+
+**仅在需要调用工具时才说明**: 只有当你接下来确实要调用工具时，才在调用前用一句话说明意图；如果本轮不调用任何工具，不要输出这句说明，直接回答用户。
+
+**说明句要求**:
+- 只输出 1 句，且只出现 1 次（禁止重复、复读或多段同义改写）
+- 简洁自然，建议 20 字以内
+- 不需要暴露具体工具名称，用用户能理解的动作描述
+- 说明后直接调用工具，不要等待用户确认
+
+**示例**:
+- "我来搜索一下相关信息。" → 然后调用搜索类工具
+- "我来读取你提到的文件。" → 然后调用读取类工具
+- "我来运行一下项目检查。" → 然后调用命令执行类工具
+`;
 
 // 导出类型
 export type { UnifiedToolConfig }

@@ -13,7 +13,7 @@ import { SupabaseSaver } from '@skroyc/langgraph-supabase-checkpointer'
 import { supabase } from '@/app/database'
 import { generateArtifactId, getCanvasSystemPrompt } from '../canvas/canvas-prompt'
 import { createModel } from './utils/modelFactory'
-import { createLangChainTools } from './utils/tools'
+import { createLangChainTools, getToolUsagePrompt,  } from './utils/tools'
 import '../utils/loadEnv'
 
 // 全局缓存：存储 workflow 与匿名编译后的 app
@@ -36,18 +36,31 @@ async function createWorkflow(config?: ModelConfig, toolIds?: string[]) {
   // 绑定工具到模型
   const modelWithTools = tools.length > 0 ? model.bindTools!(tools) : model
 
+  const canvasEnabled = toolIds?.includes('canvas') ?? false;
+  const hasSelectedTools = (toolIds?.length ?? 0) > 0;
   // 聊天节点：处理用户输入并生成回复
   async function chatbotNode(state: typeof MessagesAnnotation.State) {
     try {
-      // 为每次对话生成唯一的 artifact ID
-      const artifactId = generateArtifactId()
+      
+      let messagesWithSystem = state.messages;
 
-      // 注入 Canvas System Prompt（包含生成的 artifact ID）
-      const canvasSystemPrompt = getCanvasSystemPrompt(artifactId)
-      const systemMessage = new SystemMessage(canvasSystemPrompt)
+      // 如果选择了任何工具，注入工具使用说明
+      if (hasSelectedTools) {
+        const toolUsagePrompt = getToolUsagePrompt();
+        const toolUsageMessage = new SystemMessage(toolUsagePrompt);
+        messagesWithSystem = [toolUsageMessage, ...messagesWithSystem];
+      }
 
-      // 将系统消息添加到消息数组开头
-      const messagesWithSystem = [systemMessage, ...state.messages]
+      // 如果启用了 Canvas，注入 Canvas 专用 Prompt
+      if (canvasEnabled) {
+        // 为每次对话生成唯一的 artifact ID
+        const artifactId = generateArtifactId()
+        // 注入 Canvas System Prompt（包含生成的 artifact ID）
+        const canvasSystemPrompt = getCanvasSystemPrompt(artifactId)
+        const systemMessage = new SystemMessage(canvasSystemPrompt)
+        // 将系统消息添加到消息数组开头
+        messagesWithSystem = [systemMessage, ...messagesWithSystem];
+      }
 
       const response = await modelWithTools.invoke(messagesWithSystem)
       return { messages: [response] }
