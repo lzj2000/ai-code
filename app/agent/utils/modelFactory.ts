@@ -16,6 +16,10 @@ const defaultModelConfig: ModelConfig = {
   modelName: DEFAULT_MODEL_ID,
 }
 
+function resolveAiBaseUrl(baseUrl?: string) {
+  return process.env.AI_BASE_URL || baseUrl
+}
+
 export function createModel(config?: ModelConfig): BaseChatModel {
   let model: BaseChatModel
   if (!config) {
@@ -55,7 +59,7 @@ export function createModel(config?: ModelConfig): BaseChatModel {
     else if (realModelName.startsWith('glm:')) {
       provider = 'glm'
       realModelName = realModelName.replace('glm:', '')
-      baseUrl = baseUrl || process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4'
+      baseUrl = process.env.AI_BASE_URL || baseUrl || process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4'
       apiKeyEnv = apiKeyEnv || 'GLM_API_KEY'
     }
   }
@@ -75,9 +79,11 @@ export function createModel(config?: ModelConfig): BaseChatModel {
     default:
       // 确定 OpenAI 兼容模型的 Base URL 与 API Key
       if (provider === 'glm') {
-        baseUrl = baseUrl || process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4'
+        baseUrl = process.env.AI_BASE_URL || baseUrl || process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4'
         apiKeyEnv = apiKeyEnv || 'GLM_API_KEY'
       }
+
+      baseUrl = resolveAiBaseUrl(baseUrl)
 
       const apiKey = apiKeyEnv
         ? (process.env[apiKeyEnv] || '')
