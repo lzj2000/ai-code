@@ -2,11 +2,11 @@ export interface ModelOption {
   id: string
   name: string
   description: string
-  provider: 'google' | 'openai'
+  provider: 'google' | 'openai' | 'glm'
   // 某些 OpenAI 兼容模型需要特定的 Base URL
   baseUrl?: string
   // 可选：指定使用哪个环境变量读取 API Key
-  apiKeyEnv?: 'OPENAI_API_KEY' | 'QWEN_API_KEY' | 'GOOGLE_API_KEY'
+  apiKeyEnv?: 'OPENAI_API_KEY' | 'QWEN_API_KEY' | 'GOOGLE_API_KEY' | 'GLM_API_KEY'
 }
 
 export const AVAILABLE_MODELS: ModelOption[] = [
@@ -74,6 +74,16 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     provider: 'openai',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     apiKeyEnv: 'QWEN_API_KEY',
+  },
+
+  // 智谱 GLM 模型（OpenAI 兼容模式）
+  {
+    id: 'glm:glm-5',
+    name: 'GLM-5',
+    description: '智谱 GLM-5 模型，使用 GLM_API_KEY',
+    provider: 'glm',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    apiKeyEnv: 'GLM_API_KEY',
   },
 
   // DeepSeek 模型（OpenAI 兼容模式）

@@ -3,13 +3,13 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
 import { ChatOpenAI } from '@langchain/openai'
 import { AVAILABLE_MODELS, DEFAULT_MODEL_ID } from './models'
 
-export type ModelProvider = 'openai' | 'google' | 'qwen'
+export type ModelProvider = 'openai' | 'google' | 'glm' | 'qwen'
 
 export interface ModelConfig {
   provider?: ModelProvider
   modelName: string
   baseUrl?: string
-  apiKeyEnv?: 'OPENAI_API_KEY' | 'QWEN_API_KEY' | 'GOOGLE_API_KEY'
+  apiKeyEnv?: 'OPENAI_API_KEY' | 'QWEN_API_KEY' | 'GOOGLE_API_KEY' | 'GLM_API_KEY'
 }
 
 const defaultModelConfig: ModelConfig = {
@@ -52,6 +52,12 @@ export function createModel(config?: ModelConfig): BaseChatModel {
       provider = 'openai'
       realModelName = realModelName.replace('openai:', '')
     }
+    else if (realModelName.startsWith('glm:')) {
+      provider = 'glm'
+      realModelName = realModelName.replace('glm:', '')
+      baseUrl = baseUrl || process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4'
+      apiKeyEnv = apiKeyEnv || 'GLM_API_KEY'
+    }
   }
 
   // 3. 根据 Provider 实例化模型
@@ -64,11 +70,14 @@ export function createModel(config?: ModelConfig): BaseChatModel {
       })
       break
 
+    case 'glm':
     case 'openai':
     default:
-      // 确定 Base URL
-      // 如果没有指定 baseUrl，且是 qwen/deepseek 等兼容模型，通常需要指定
-      // 这里如果 predefinedModel 存在，已经获取了 baseUrl
+      // 确定 OpenAI 兼容模型的 Base URL 与 API Key
+      if (provider === 'glm') {
+        baseUrl = baseUrl || process.env.GLM_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4'
+        apiKeyEnv = apiKeyEnv || 'GLM_API_KEY'
+      }
 
       const apiKey = apiKeyEnv
         ? (process.env[apiKeyEnv] || '')
