@@ -6,10 +6,20 @@ export interface ModelOption {
   // 某些 OpenAI 兼容模型需要特定的 Base URL
   baseUrl?: string
   // 可选：指定使用哪个环境变量读取 API Key
-  apiKeyEnv?: 'OPENAI_API_KEY' | 'QWEN_API_KEY' | 'GOOGLE_API_KEY'
+  apiKeyEnv?: 'OPENAI_API_KEY' | 'QWEN_API_KEY' | 'GOOGLE_API_KEY' | 'GLM_API_KEY'
 }
 
 export const AVAILABLE_MODELS: ModelOption[] = [
+  // 智谱 GLM 模型（OpenAI 兼容模式）
+  {
+    id: 'openai:glm-5',
+    name: '智谱 GLM-5',
+    description: '智谱AI最新GLM-5模型，强大的推理能力',
+    provider: 'openai',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    apiKeyEnv: 'OPENAI_API_KEY',
+  },
+
   // Google Gemini 模型
   {
     id: 'google:gemini-3-pro-preview',
@@ -87,4 +97,4 @@ export const AVAILABLE_MODELS: ModelOption[] = [
   },
 ]
 
-export const DEFAULT_MODEL_ID = 'google:gemini-2.5-flash'
+export const DEFAULT_MODEL_ID = 'openai:glm-5'
