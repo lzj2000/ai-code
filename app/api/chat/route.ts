@@ -1,23 +1,31 @@
+import * as Sentry from '@sentry/nextjs'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import type { ModelConfig } from '@/app/agent/utils/modelFactory'
 import { withAuth } from '@/app/middleware/auth'
 
 import { chatService } from '@/app/services'
+import { captureChatException, createChatObservationAttributes, toErrorMessage } from '@/app/utils/sentry'
 import '../../utils/loadEnv'
 
-/**
- * POST /api/chat
- * 发送聊天消息（流式响应）
- */
+interface ChatRoutePayload {
+  message?: unknown
+  thread_id?: string
+  modelConfig?: ModelConfig
+  selectedTools?: string[]
+}
+
 export const POST = withAuth(async (request: NextRequest, auth): Promise<Response> => {
+  let requestPayload: ChatRoutePayload = {}
+
   try {
-    const { message, thread_id, modelConfig, selectedTools } = await request.json()
+    requestPayload = await request.json() as ChatRoutePayload
+    const { message, thread_id, modelConfig, selectedTools } = requestPayload
 
     if (!message) {
-      return NextResponse.json({ error: '无效的消息格式' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid message payload.' }, { status: 400 })
     }
 
-    // 获取或创建线程 ID
     const { threadId, isNewSession } = await chatService.getOrCreateThreadId({
       message,
       thread_id,
@@ -27,7 +35,6 @@ export const POST = withAuth(async (request: NextRequest, auth): Promise<Respons
       authenticatedClient: auth.client,
     })
 
-    // 创建流式响应
     const stream = new ReadableStream({
       async start(controller) {
         try {
@@ -39,26 +46,30 @@ export const POST = withAuth(async (request: NextRequest, auth): Promise<Respons
             userId: auth.user!.id,
             authenticatedClient: auth.client,
           }, threadId, isNewSession)) {
-            const data = `${JSON.stringify(payload)}\n`
-            controller.enqueue(new TextEncoder().encode(data))
+            controller.enqueue(new TextEncoder().encode(`${JSON.stringify(payload)}\n`))
           }
+
           controller.close()
         }
         catch (error) {
-          console.error('聊天流错误:', error)
-          const errorData
-            = `${JSON.stringify({
-              type: 'error',
-              error: error || '服务器内部错误',
-              message: '抱歉，处理你的请求时出现了问题。请稍后重试。',
-            })}\n`
-          controller.enqueue(new TextEncoder().encode(errorData))
+          captureChatException(error, {
+            stage: 'chat_stream',
+            threadId,
+            userId: auth.user!.id,
+            modelConfig,
+            selectedTools,
+          })
+
+          controller.enqueue(new TextEncoder().encode(`${JSON.stringify({
+            type: 'error',
+            error: toErrorMessage(error),
+            message: 'An internal error interrupted the chat stream.',
+          })}\n`))
           controller.close()
         }
       },
     })
 
-    // 返回流式响应
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -69,51 +80,68 @@ export const POST = withAuth(async (request: NextRequest, auth): Promise<Respons
     })
   }
   catch (error) {
-    console.error('聊天 API 错误:', error)
+    captureChatException(error, {
+      stage: 'chat_request',
+      threadId: requestPayload?.thread_id,
+      userId: auth.user!.id,
+      modelConfig: requestPayload?.modelConfig,
+      selectedTools: requestPayload?.selectedTools,
+    })
+
     return NextResponse.json(
       {
-        error: '服务器内部错误',
-        response: '抱歉，处理你的请求时出现了问题。请稍后重试。',
+        error: 'Internal server error.',
+        response: 'An internal error occurred while processing the chat request.',
       },
       { status: 500 },
     )
   }
-},
-)
-/**
- * GET /api/chat
- * 获取聊天历史或 API 信息
- */
+})
+
 export const GET = withAuth(async (request: NextRequest, auth) => {
-  // 判断是否为历史记录请求
   const { searchParams } = new URL(request.url)
   const thread_id = searchParams.get('thread_id')
 
   if (thread_id) {
     try {
-      // 使用 service 层获取历史记录
-      const result = await chatService.getChatHistory({
-        thread_id,
-        userId: auth.user!.id,
-        authenticatedClient: auth.client,
+      const result = await Sentry.startSpan({
+        name: 'chat.history.fetch',
+        op: 'ai.history.fetch',
+        attributes: createChatObservationAttributes({
+          stage: 'chat_history',
+          threadId: thread_id,
+          userId: auth.user!.id,
+        }),
+      }, async () => {
+        return chatService.getChatHistory({
+          thread_id,
+          userId: auth.user!.id,
+          authenticatedClient: auth.client,
+        })
       })
+
       return NextResponse.json(result)
     }
-    catch (e) {
+    catch (error) {
+      captureChatException(error, {
+        stage: 'chat_history',
+        threadId: thread_id,
+        userId: auth.user!.id,
+      })
+
       return NextResponse.json(
-        { error: '获取历史记录失败', detail: String(e) },
+        { error: 'Failed to load chat history.', detail: toErrorMessage(error) },
         { status: 500 },
       )
     }
   }
 
-  // 默认返回API信息
   return NextResponse.json({
-    message: 'LangGraph 聊天 API 正在运行',
+    message: 'LangGraph chat API is running.',
     version: '1.0.0',
     endpoints: {
-      chat: 'POST /api/chat (流式响应)',
-      history: 'GET /api/chat?thread_id=xxx (获取历史记录)',
+      chat: 'POST /api/chat (streaming response)',
+      history: 'GET /api/chat?thread_id=xxx (chat history)',
     },
   })
 })
