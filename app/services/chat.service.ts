@@ -1,219 +1,280 @@
 import type { ChatHistoryQuery, ChatHistoryResult, ChatMessageInput } from './types'
 import { randomUUID } from 'node:crypto'
+import * as Sentry from '@sentry/nextjs'
 import { HumanMessage, mapStoredMessageToChatMessage } from '@langchain/core/messages'
 import { getApp } from '@/app/agent/chatbot'
 import { createSession } from '@/app/database'
+import { captureChatException, createChatObservationAttributes } from '@/app/utils/sentry'
 
-/**
- * ChatService
- * 负责处理聊天相关的业务逻辑
- */
 export class ChatService {
-  /**
-   * 解析用户消息，转换为 LangChain 消息对象
-   */
   parseUserMessage(message: string | any[] | Record<string, any>): HumanMessage {
     if (typeof message === 'string') {
-      // 字符串格式：创建 HumanMessage
       return new HumanMessage(message)
     }
 
     if (Array.isArray(message)) {
-      // 数组格式：多模态内容（文本 + 图片）
       return new HumanMessage({ content: message })
     }
 
     if (typeof message === 'object' && message !== null) {
-      // 对象格式：尝试重建 LangChain 消息
       try {
         return mapStoredMessageToChatMessage(message as any) as HumanMessage
       }
       catch (error) {
-        console.error('重建消息对象失败:', error)
-        // 如果重建失败，尝试提取 content
+        console.error('Failed to rebuild LangChain message from stored payload:', error)
         const content = message.content || message.kwargs?.content
         if (!content) {
-          throw new Error('消息对象缺少 content 字段')
+          throw new Error('Stored message payload is missing content.')
         }
         return new HumanMessage(content)
       }
     }
 
-    throw new Error('无效的消息格式')
+    throw new Error('Invalid message payload.')
   }
 
-  /**
-   * 提取会话名称
-   */
   extractSessionName(message: string | any[] | Record<string, any>): string {
     if (typeof message === 'string') {
-      return message || '新会话'
+      return message || 'New session'
     }
 
     if (Array.isArray(message)) {
-      // 从多模态内容中提取文本
       const textContent = message.find(item => item.type === 'text')
-      return textContent?.text || '新会话'
+      return textContent?.text || 'New session'
     }
 
     if (typeof message === 'object' && message !== null) {
-      // 从消息对象中提取文本
       const content = message.content || message.kwargs?.content
       if (typeof content === 'string') {
-        return content || '新会话'
+        return content || 'New session'
       }
       if (Array.isArray(content)) {
         const textContent = content.find(item => item.type === 'text')
-        return textContent?.text || '新会话'
+        return textContent?.text || 'New session'
       }
     }
 
-    return '新会话'
+    return 'New session'
   }
 
-  /**
-   * 获取或创建会话 ID
-   */
   async getOrCreateThreadId(input: ChatMessageInput): Promise<{ threadId: string, isNewSession: boolean }> {
-    const threadId
-      = typeof input.thread_id === 'string' && input.thread_id
-        ? input.thread_id
-        : randomUUID()
-    const isNewSession = !(typeof input.thread_id === 'string' && input.thread_id)
+    return Sentry.startSpan({
+      name: 'chat.thread.resolve',
+      op: 'ai.thread.resolve',
+      attributes: createChatObservationAttributes({
+        stage: 'thread_resolve',
+        threadId: typeof input.thread_id === 'string' ? input.thread_id : undefined,
+        userId: input.userId,
+        modelConfig: input.modelConfig,
+        selectedTools: input.selectedTools,
+      }),
+    }, async () => {
+      const threadId
+        = typeof input.thread_id === 'string' && input.thread_id
+          ? input.thread_id
+          : randomUUID()
+      const isNewSession = !(typeof input.thread_id === 'string' && input.thread_id)
 
-    // 如果是新会话，在数据库中创建会话记录
-    if (isNewSession) {
-      const sessionName = this.extractSessionName(input.message)
+      if (isNewSession) {
+        const sessionName = this.extractSessionName(input.message)
 
-      if (!input.userId || !input.authenticatedClient) {
-        throw new Error('创建会话时缺少 userId 或 authenticatedClient')
+        if (!input.userId || !input.authenticatedClient) {
+          throw new Error('Missing userId or authenticatedClient while creating a session.')
+        }
+
+        await createSession(threadId, sessionName, input.userId, input.authenticatedClient)
       }
 
-      await createSession(threadId, sessionName, input.userId, input.authenticatedClient)
-    }
-
-    return { threadId, isNewSession }
+      return { threadId, isNewSession }
+    })
   }
 
-  /**
-   * 创建流式聊天响应
-   */
   async* streamChat(input: ChatMessageInput, threadId: string, isNewSession: boolean): AsyncGenerator<any, void, unknown> {
-    // 解析用户消息
-    const userMessage = this.parseUserMessage(input.message)
-
-    // 配置线程
-    const threadConfig = { configurable: { thread_id: threadId } }
-
-    // 如果是新创建的会话，立即发送 sessionId
-    if (isNewSession) {
-      yield {
-        type: 'session',
-        thread_id: threadId,
-      }
-    }
-
-    // 获取应用实例，传入模型和工具配置
-    const app = await getApp(input.modelConfig, input.selectedTools, input.authenticatedClient, input.userId)
-
-    let completeMessage = null
-
-    // 使用 streamEvents 获取流式响应
-    for await (const event of app.streamEvents(
-      { messages: [userMessage] },
-      { version: 'v2', ...threadConfig },
-    )) {
-      if (event.event === 'on_chat_model_stream') {
-        const chunk = event.data?.chunk
-        if (chunk?.content) {
-          // 发送内容片段
-          yield {
-            type: 'chunk',
-            content: chunk.content,
-          }
-        }
-        // 保存完整的消息对象
-        completeMessage = chunk
-      }
-      else if (event.event === 'on_chat_model_end') {
-        const output = event.data?.output
-        if (output?.tool_calls && output.tool_calls.length > 0) {
-          yield {
-            type: 'tool_calls',
-            tool_calls: output.tool_calls.map((tc: any) => ({
-              id: tc.id,
-              name: tc.name,
-              args: tc.args,
-            })),
-          }
-        }
-      }
-      else if (event.event === 'on_tool_end') {
-        const toolOutput = event.data?.output
-        yield {
-          type: 'tool_result',
-          name: event.name,
-          output: toolOutput,
-        }
-      }
-      else if (event.event === 'on_tool_error') {
-        const error = event.data?.error
-        yield {
-          type: 'tool_error',
-          name: event.name,
-          error: error?.message || String(error),
-        }
-      }
-    }
-
-    // 获取最终状态，包含完整的消息历史
-    const finalState = await app.getState(threadConfig)
-    const allMessages = finalState?.values?.messages || []
-
-    // 序列化消息对象
-    const serializedMessage = completeMessage
-      ? JSON.parse(JSON.stringify(completeMessage))
-      : null
-    const serializedMessages = allMessages.map((msg: any) =>
-      JSON.parse(JSON.stringify(msg)),
-    )
-
-    // 发送结束标记
-    yield {
-      type: 'end',
-      status: 'success',
-      thread_id: threadId,
-      message: serializedMessage,
-      messages: serializedMessages,
-    }
-  }
-
-  /**
-   * 获取聊天历史
-   */
-  async getChatHistory(query: ChatHistoryQuery): Promise<ChatHistoryResult> {
-    const { thread_id, authenticatedClient, userId } = query
-
-    // 获取应用实例
-    const app = await getApp(undefined, undefined, authenticatedClient, userId)
-
-    // 通过 graph.getState 获取历史
-    const state = await app.getState({
-      configurable: { thread_id },
+    const observation = createChatObservationAttributes({
+      stage: 'stream_chat',
+      threadId,
+      userId: input.userId,
+      modelConfig: input.modelConfig,
+      selectedTools: input.selectedTools,
     })
 
-    // 序列化消息对象
-    const messages = state?.values?.messages || []
-    const serializedMessages = messages.map((msg: any) =>
-      JSON.parse(JSON.stringify(msg)),
-    )
+    const streamSpan = Sentry.startInactiveSpan({
+      name: 'chat.stream',
+      op: 'ai.stream',
+      attributes: observation,
+    })
 
-    return {
-      thread_id,
-      history: serializedMessages,
+    try {
+      const userMessage = this.parseUserMessage(input.message)
+      const threadConfig = { configurable: { thread_id: threadId } }
+
+      if (isNewSession) {
+        yield {
+          type: 'session',
+          thread_id: threadId,
+        }
+      }
+
+      const app = await Sentry.startSpan({
+        name: 'chat.agent.bootstrap',
+        op: 'ai.agent.bootstrap',
+        attributes: observation,
+      }, async () => {
+        return getApp(input.modelConfig, input.selectedTools, input.authenticatedClient, input.userId)
+      })
+
+      let completeMessage: unknown = null
+
+      for await (const event of app.streamEvents(
+        { messages: [userMessage] },
+        { version: 'v2', ...threadConfig },
+      )) {
+        if (event.event === 'on_chat_model_stream') {
+          const chunk = event.data?.chunk
+          if (chunk?.content) {
+            yield {
+              type: 'chunk',
+              content: chunk.content,
+            }
+          }
+          completeMessage = chunk
+          continue
+        }
+
+        if (event.event === 'on_chat_model_end') {
+          const output = event.data?.output
+          const toolCalls = output?.tool_calls
+
+          if (toolCalls && toolCalls.length > 0) {
+            Sentry.addBreadcrumb({
+              category: 'ai.tool_calls',
+              message: 'Model returned tool calls.',
+              level: 'info',
+              data: {
+                threadId,
+                toolNames: toolCalls.map((toolCall: any) => toolCall.name),
+              },
+            })
+
+            yield {
+              type: 'tool_calls',
+              tool_calls: toolCalls.map((toolCall: any) => ({
+                id: toolCall.id,
+                name: toolCall.name,
+                args: toolCall.args,
+              })),
+            }
+          }
+
+          continue
+        }
+
+        if (event.event === 'on_tool_end') {
+          const toolOutput = event.data?.output
+
+          Sentry.addBreadcrumb({
+            category: 'ai.tool',
+            message: 'Tool execution completed.',
+            level: 'info',
+            data: {
+              threadId,
+              toolName: event.name,
+            },
+          })
+
+          yield {
+            type: 'tool_result',
+            name: event.name,
+            output: toolOutput,
+          }
+
+          continue
+        }
+
+        if (event.event === 'on_tool_error') {
+          const toolError = event.data?.error
+
+          captureChatException(toolError, {
+            stage: 'tool_error',
+            threadId,
+            userId: input.userId,
+            modelConfig: input.modelConfig,
+            selectedTools: input.selectedTools,
+            eventName: event.name,
+          })
+
+          yield {
+            type: 'tool_error',
+            name: event.name,
+            error: toolError?.message || String(toolError),
+          }
+        }
+      }
+
+      const finalState = await Sentry.startSpan({
+        name: 'chat.final_state',
+        op: 'ai.final_state',
+        attributes: observation,
+      }, async () => {
+        return app.getState(threadConfig)
+      })
+
+      const allMessages = finalState?.values?.messages || []
+      const serializedMessage = completeMessage
+        ? JSON.parse(JSON.stringify(completeMessage))
+        : null
+      const serializedMessages = allMessages.map((message: any) =>
+        JSON.parse(JSON.stringify(message)),
+      )
+
+      yield {
+        type: 'end',
+        status: 'success',
+        thread_id: threadId,
+        message: serializedMessage,
+        messages: serializedMessages,
+      }
     }
+    catch (error) {
+      captureChatException(error, {
+        stage: 'chat_service_stream',
+        threadId,
+        userId: input.userId,
+        modelConfig: input.modelConfig,
+        selectedTools: input.selectedTools,
+      })
+      throw error
+    }
+    finally {
+      streamSpan?.end()
+    }
+  }
+
+  async getChatHistory(query: ChatHistoryQuery): Promise<ChatHistoryResult> {
+    return Sentry.startSpan({
+      name: 'chat.history.get_state',
+      op: 'ai.history.get_state',
+      attributes: createChatObservationAttributes({
+        stage: 'chat_history_state',
+        threadId: query.thread_id,
+        userId: query.userId,
+      }),
+    }, async () => {
+      const app = await getApp(undefined, undefined, query.authenticatedClient, query.userId)
+      const state = await app.getState({
+        configurable: { thread_id: query.thread_id },
+      })
+      const messages = state?.values?.messages || []
+      const serializedMessages = messages.map((message: any) =>
+        JSON.parse(JSON.stringify(message)),
+      )
+
+      return {
+        thread_id: query.thread_id,
+        history: serializedMessages,
+      }
+    })
   }
 }
 
-// 导出单例实例
 export const chatService = new ChatService()
